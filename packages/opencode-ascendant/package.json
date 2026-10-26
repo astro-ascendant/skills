@@ -35,7 +35,7 @@
   "dependencies": {
     "@effect/platform-bun": "^4.0.5",
     "@toon-format/toon": "^4.4.0",
-    "astro-ascendant": "^5.1.0"
+    "astro-ascendant": "^5.1.1"
   },
   "peerDependencies": {
     "@opencode/plugin": "^2.0.29",

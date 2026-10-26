@@ -17,7 +17,7 @@ package_specs=(
   "@effect/platform-bun@4.0.5"
   "@swisseph/node@1.4.0"
   "@toon-format/toon@4.4.0"
-  "astro-ascendant@5.1.0"
+  "astro-ascendant@5.1.1"
   "effect@4.0.5"
 )
 

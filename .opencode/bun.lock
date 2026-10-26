@@ -6,7 +6,7 @@
       "dependencies": {
         "@effect/platform-bun": "4.0.5",
         "@toon-format/toon": "4.4.0",
-        "astro-ascendant": "5.1.0",
+        "astro-ascendant": "5.1.1",
       },
       "devDependencies": {
         "bun-types": "1.4.3",
@@ -229,7 +229,7 @@
 
     "ansi-styles": ["ansi-styles@6.2.3", "", {}, "sha512-4Dj6M28JB+oAH8kFkTLUo+a2jwOFkuqb3yucU0CANcRRUbxS0cP0nZYCGjcc3BNXwRIsUVmDGgzawme7zvJHvg=="],
 
-    "astro-ascendant": ["astro-ascendant@5.1.0", "", { "dependencies": { "@swisseph/node": "^1.4.0" }, "peerDependencies": { "effect": "^4.0.0" } }, "sha512-wj0wfdZDcc3BPp/SKd41LgmEFU8/xg4JhlqgrJKRQPW6K9PFffQhGzDlRsP58YyMTtuvXmKZyUrc97GoHWBL9Q=="],
+    "astro-ascendant": ["astro-ascendant@5.1.1", "", { "dependencies": { "@swisseph/node": "^1.4.0" }, "peerDependencies": { "effect": "^4.0.0" } }, "sha512-IaJvCfTRUZsfxpA5wNFq+g8WfWD03e3SOcNf/HmnmlA0h5CHjXzqIV8DZFbs6LlBD+J3/KDTjIVOrsSj9CPysQ=="],
 
     "aws4fetch": ["aws4fetch@1.0.20", "", {}, "sha512-/djoAN709iY65ETD6LKCtyyEI04XIBP5xVvfmNxsEP0uJB5tyaGBztSryRr4HqMStr9R06PisQE7m9zDTXKu6g=="],
 
