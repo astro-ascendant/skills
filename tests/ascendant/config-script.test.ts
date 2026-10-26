@@ -7,7 +7,7 @@ import { promisify } from "node:util";
 import { describe, expect, test } from "bun:test";
 
 const run = promisify(execFile);
-const CONFIG_SCRIPT = resolve(import.meta.dir, "..", "scripts", "config.sh");
+const CONFIG_SCRIPT = resolve(import.meta.dir, "../../skills/ascendant/scripts/config.sh");
 const CONFIG_FILE = join(".ascendant", "config.txt");
 
 async function withWorkspace(body: (cwd: string) => Promise<void>): Promise<void> {

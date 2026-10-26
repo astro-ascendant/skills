@@ -3,19 +3,6 @@ import * as NodeUrl from "node:url";
 import { Effect, Layer, Option, Path } from "effect";
 import { BadArgument } from "effect/PlatformError";
 
-/**
- * Host `Path` service for Bun (Bun implements the `node:path`/`node:url`
- * modules, so this runs wherever Bun runs).
- *
- * Why this exists instead of `@effect/platform-bun/BunPath`: BunPath is a
- * thin re-export of `@effect/platform-node-shared/NodePath`, whose 4.x
- * build does `import { make } from "effect/Path"`. The OpenCode host's
- * `effect` (4.0.0-beta.x) has no `make` export, so merely importing that
- * module fails the whole plugin load with
- * `Export named 'make' not found in module 'effect/Path'`.
- * This layer only touches public single-level `effect/*` modules plus
- * Bun's `node:` builtins, so the host serves every import.
- */
 const fromFileUrl = (url: URL): Effect.Effect<string, BadArgument> =>
   Effect.try({
     try: () => NodeUrl.fileURLToPath(url),

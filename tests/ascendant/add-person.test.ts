@@ -5,8 +5,14 @@ import { describe, expect, test } from "bun:test";
 import { Chart } from "astro-ascendant";
 import { Effect, Schema } from "effect";
 
-import { AppLayer, Latitude, Longitude, OffsetMoment, PersonName } from "./common.ts";
-import { addPersonFromInput } from "./add-person.ts";
+import {
+  AppLayer,
+  Latitude,
+  Longitude,
+  OffsetMoment,
+  PersonName,
+} from "../../skills/ascendant/tools/common.ts";
+import { addPersonFromInput } from "../../skills/ascendant/tools/add-person.ts";
 
 const ADA = {
   name: Schema.decodeUnknownSync(PersonName)("Ada"),

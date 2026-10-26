@@ -1,6 +1,6 @@
 {
   "name": "ascendant-agents",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "private": true,
   "homepage": "https://astro-ascendant.vercel.app",
   "repository": {
@@ -24,7 +24,7 @@
     "typecheck": "tsc --project skills/ascendant/tsconfig.json --noEmit && tsc --project .opencode/tsconfig.json --noEmit",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
-    "format": "oxfmt skills/ascendant/tools scripts .opencode/plugins *.json .oxlintrc.json .oxfmtrc.json skills/ascendant/tsconfig.json .opencode/tsconfig.json",
+    "format": "oxfmt skills/ascendant/tools tests scripts .opencode/plugins *.json .oxlintrc.json .oxfmtrc.json skills/ascendant/tsconfig.json .opencode/tsconfig.json",
     "format:check": "bun run format -- --check"
   },
   "dependencies": {

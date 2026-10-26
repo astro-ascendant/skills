@@ -7,7 +7,7 @@ import {
   starLordOf,
   subLordOf,
   subSubLordOf,
-} from "./kp-lords.ts";
+} from "../../skills/ascendant/tools/kp-lords.ts";
 
 describe("kp lord chain", () => {
   test("starts Ashwini with Ketu as star lord", () => {

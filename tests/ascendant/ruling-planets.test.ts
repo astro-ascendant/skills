@@ -13,11 +13,11 @@ import {
   OffsetMoment,
   PersonName,
   PlatformLayer,
-} from "./common.ts";
-import { searchTransits } from "./check-transit.ts";
-import { addPersonFromInput } from "./add-person.ts";
-import { kpLordChain } from "./kp-lords.ts";
-import { rulingPlanetsWorkflow } from "./ruling-planets.ts";
+} from "../../skills/ascendant/tools/common.ts";
+import { searchTransits } from "../../skills/ascendant/tools/check-transit.ts";
+import { addPersonFromInput } from "../../skills/ascendant/tools/add-person.ts";
+import { kpLordChain } from "../../skills/ascendant/tools/kp-lords.ts";
+import { rulingPlanetsWorkflow } from "../../skills/ascendant/tools/ruling-planets.ts";
 
 const KpLayer = Layer.mergeAll(PlatformLayer, KpAstroParamsLayer, Swisseph.SwissephLayer);
 

@@ -1,15 +1,5 @@
 import { Schema } from "effect";
 
-/**
- * Single source of truth for tool input contracts shared by the skill CLI
- * (`cli.ts` via `common.ts`) and the OpenCode Effect plugin
- * (`.opencode/plugins/ascendant/index.ts`).
- *
- * Dependency-free by design: imports only `effect`, so the OpenCode plugin
- * can use it without pulling the skill's heavy runtime (`astro-ascendant`,
- * `@toon-format/toon`). Keep it that way. If `common.ts` needs a schema,
- * define it here and re-export it there.
- */
 export const PersonName = Schema.String.pipe(
   Schema.check(
     Schema.isPattern(/^[\p{L}\p{N}][\p{L}\p{N} .'-]{0,79}$/u, {

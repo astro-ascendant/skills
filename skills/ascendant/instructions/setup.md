@@ -2,14 +2,14 @@
 
 Reach this file when `add`, transit, or ruling-planets needs packages, or when the method preference must be set, on a host that can write the working directory and run skill scripts. Otherwise stay in `SKILL.md`: take person evidence from the user and read `<skill-dir>/references/`.
 
-`<ascendant-skill-dir>` is the installed skill directory (the folder that contains this `instructions/` tree).
+`<skill-dir>` is the installed skill directory (the folder that contains this `instructions/` tree).
 
 ## Packages
 
 From the working directory:
 
 ```bash
-bash "<ascendant-skill-dir>/scripts/setup.sh"
+bash "<skill-dir>/scripts/setup.sh"
 ```
 
 Done when stdout reports `status: installed` for that directory. Treat package-manager warnings as noise. The script writes packages into `node_modules` without changing an existing package manifest, lockfile, or person records.
@@ -18,7 +18,7 @@ Done when stdout reports `status: installed` for that directory. Treat package-m
 
 ```bash
 rm -rf ./references
-cp -R "<ascendant-skill-dir>/references" ./references
+cp -R "<skill-dir>/references" ./references
 ```
 
 Done when `./references/kp/` and `./references/parashari/` exist. The `rm` makes a re-run replace the previous copy rather than nest `references/references`.
@@ -34,7 +34,7 @@ user wants to change their default.
 Record the answers:
 
 ```bash
-bash "<ascendant-skill-dir>/scripts/config.sh" set \
+bash "<skill-dir>/scripts/config.sh" set \
   --default-method "KP" \
   --ask-method-every-session "FALSE"
 ```
@@ -44,7 +44,7 @@ accepts `TRUE` or `FALSE` and is forced to `TRUE` when the method is `NULL`. The
 file is `<cwd>/.ascendant/config.txt`, self-ignored in the host repository, and
 read on every analysis to resolve the school.
 
-Done when `bash "<ascendant-skill-dir>/scripts/config.sh" show` reports
+Done when `bash "<skill-dir>/scripts/config.sh" show` reports
 `status: found` with the chosen values. A missing file reads as `defaultMethod:
 NULL` and `askMethodEverySession: TRUE`; never invent a default school in its
 place.
@@ -56,7 +56,7 @@ Collect name, an ISO 8601 moment with `Z` or an explicit UTC offset, latitude, a
 Invoke `ascendant_add_person` when the host exposes it. Otherwise:
 
 ```bash
-bash "<ascendant-skill-dir>/scripts/add-person.sh" \
+bash "<skill-dir>/scripts/add-person.sh" \
   --name "Person Name" \
   --moment "2000-01-01T12:00:00+05:30" \
   --latitude 12.9716 \

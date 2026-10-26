@@ -1,5 +1,11 @@
 # opencode-ascendant
 
+## 2.0.1
+
+### Patch Changes
+
+- Improve the skill workflow and clarify KP and Parashari analysis guidance.
+
 ## 2.0.0
 
 ### Major Changes

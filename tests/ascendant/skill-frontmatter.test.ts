@@ -2,8 +2,8 @@ import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { describe, expect, test } from "bun:test";
 
-const SKILL_DIR = resolve(import.meta.dir, "..");
-const ROOT_DIR = resolve(SKILL_DIR, "..", "..");
+const ROOT_DIR = resolve(import.meta.dir, "../..");
+const SKILL_DIR = join(ROOT_DIR, "skills", "ascendant");
 const COPIES = [
   join(SKILL_DIR, "SKILL.md"),
   join(ROOT_DIR, ".claude-plugin", "skills", "ascendant", "SKILL.md"),

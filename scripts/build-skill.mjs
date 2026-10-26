@@ -31,7 +31,10 @@
  *
  * Frontmatter varies per provider: the canonical and Claude copies carry
  * `name` + `description` + `version` + `license` + `metadata` plus
- * `user-invocable` / `argument-hint`.
+ * `user-invocable` / `argument-hint`. `license` and `metadata` come from the
+ * Agent Skills spec; `user-invocable` and `argument-hint` are Claude Code
+ * extensions that Claude Code documents and other harnesses ignore, so the
+ * canonical copy can carry all six safely.
  * The body stays byte-identical: the `<skill-dir>` token is resolved by the
  * agent at runtime to the directory holding SKILL.md, so it is portable.
  *

@@ -10,7 +10,7 @@ Most of the tree is **generated**; only a few directories are hand-authored.
 ## Sources of truth (edit only these)
 
 - `skills/ascendant/SKILL.src.md` builds `skills/ascendant/SKILL.md`. Keep the `.src.md` name; `npx skills` discovery relies on the literal `SKILL.md` being the built copy.
-- `skills/ascendant/{instructions,references,scripts,tools,agents}/` is the skill payload, copied verbatim into the Claude plugin. `*.test.ts` files are never copied.
+- `skills/ascendant/{instructions,references,scripts,tools,agents}/` is the skill payload, copied into plugin distributions. Tests live under the root `tests/` directory.
 - `.opencode/plugins/ascendant/` is the hand-written plugin.
 - `scripts/*.mjs` are the build and verification tools (dependency-free).
 - `UPDATE_ASTRO_ASCENDANT.md` is a hand-written maintenance runbook, not generated.
@@ -26,8 +26,8 @@ Generated, committed, never hand-edit (a rebuild overwrites them and CI fails on
 
 ```bash
 make build      # full gate: installs, version sync, rebuild, typecheck, test, lint, format:check
-bun test        # all tests (currently 3 files under skills/ascendant/tools)
-bun test skills/ascendant/tools/kp-lords.test.ts   # single file
+bun test        # all tests (currently 5 files under tests/ascendant)
+bun test tests/ascendant/kp-lords.test.ts          # single file
 bun test -t "sub after Ketu"                       # single test by name
 bun run typecheck        # two tsc projects: skills/ascendant and .opencode
 bun run lint             # oxlint
