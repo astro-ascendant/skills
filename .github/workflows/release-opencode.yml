@@ -55,15 +55,22 @@ jobs:
       - name: Upgrade npm for OIDC trusted publishing
         run: npm install -g npm@latest
 
+      # Both publish steps skip a version that is already on npm, so a
+      # re-run after a partial failure only publishes what is missing.
       - name: Publish to npm
-        run: npm publish --provenance --access public
         working-directory: packages/opencode-ascendant
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          if npm view "opencode-ascendant@$VERSION" version >/dev/null 2>&1; then
+            echo "opencode-ascendant@$VERSION already published"
+          else
+            npm publish --provenance --access public
+          fi
 
       # ascendant-skills (the `npx ascendant-skills install` CLI) shares the
-      # root version, so the same tag publishes it. Skipped when that version
-      # is already on npm, so re-running the workflow stays green.
+      # root version, so the same tag publishes it.
       - name: Publish ascendant-skills to npm
         working-directory: packages/ascendant-skills
         env:
