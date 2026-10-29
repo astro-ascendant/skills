@@ -1,5 +1,11 @@
 # opencode-ascendant
 
+## 2.1.0
+
+### Minor Changes
+
+- Add `npx ascendant-skills install`, a one-command setup CLI for Claude Code, Codex, OpenCode, Cursor and Gemini CLI, published as the new `ascendant-skills` package alongside this one.
+
 ## 2.0.1
 
 ### Patch Changes
