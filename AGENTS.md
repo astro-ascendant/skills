@@ -13,20 +13,21 @@ Most of the tree is **generated**; only a few directories are hand-authored.
 - `skills/ascendant/{instructions,references,scripts,tools,agents}/` is the skill payload, copied into plugin distributions. Tests live under the root `tests/` directory.
 - `.opencode/plugins/ascendant/` is the hand-written plugin.
 - `scripts/*.mjs` are the build and verification tools (dependency-free).
+- `packages/ascendant-skills/` is the hand-written `npx ascendant-skills install` CLI (dependency-free Node). Its command matrix is `lib/plan.mjs`, tested by `tests/installer/`. Only its `version` is stamped by `sync-versions`.
 - `UPDATE_ASTRO_ASCENDANT.md` is a hand-written maintenance runbook, not generated.
 
 Generated, committed, never hand-edit (a rebuild overwrites them and CI fails on drift):
 
 - `skills/ascendant/SKILL.md`
 - `.claude-plugin/skills/ascendant/` (Claude Code plugin copy)
-- `packages/opencode-ascendant/` (published npm package: `plugin/`, `skills/`, stamped manifests)
+- `packages/opencode-ascendant/` (published npm package: `plugin/`, `skills/`, stamped manifests; `packages/ascendant-skills/` is not generated)
 - Codex has no generated skill copy: `.codex-plugin/plugin.json` points at the canonical `skills/`. There are no per-harness copies for Cursor, Gemini, Kiro, Pi, Grok, or Antigravity; those install the canonical skill globally (`npx skills`).
 
 ## Commands
 
 ```bash
 make build      # full gate: installs, version sync, rebuild, typecheck, test, lint, format:check
-bun test        # all tests (currently 5 files under tests/ascendant)
+bun test        # all tests (tests/ascendant and tests/installer)
 bun test tests/ascendant/kp-lords.test.ts          # single file
 bun test -t "sub after Ketu"                       # single test by name
 bun run typecheck        # two tsc projects: skills/ascendant and .opencode

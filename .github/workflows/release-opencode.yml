@@ -61,6 +61,21 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+      # ascendant-skills (the `npx ascendant-skills install` CLI) shares the
+      # root version, so the same tag publishes it. Skipped when that version
+      # is already on npm, so re-running the workflow stays green.
+      - name: Publish ascendant-skills to npm
+        working-directory: packages/ascendant-skills
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          if npm view "ascendant-skills@$VERSION" version >/dev/null 2>&1; then
+            echo "ascendant-skills@$VERSION already published"
+          else
+            npm publish --provenance --access public
+          fi
+
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
         env:

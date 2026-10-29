@@ -23,6 +23,17 @@ Just describe your birth details or ask a life question. It picks the right mode
 
 ## Install in 30 seconds
 
+**One command (any tool)**
+```console
+npx ascendant-skills install
+```
+
+Detects Claude Code, Codex, OpenCode, Cursor, Gemini CLI, Copilot, Kiro, Pi, Grok, Antigravity and
+Windsurf, asks project or global, then installs the plugin where the tool has one and the skill
+everywhere else. Scripted: `--providers=claude,cursor --scope=global --yes`.
+
+Or install per tool:
+
 **OpenCode (recommended)**
 ```console
 opencode plugin add opencode-ascendant

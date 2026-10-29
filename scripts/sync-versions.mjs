@@ -7,7 +7,7 @@
  * (bumped by `changeset version`). This script stamps that version into:
  *
  *   plugin.json, .claude-plugin/plugin.json, .codex-plugin/plugin.json,
- *   .opencode/package.json
+ *   .opencode/package.json, packages/ascendant-skills/package.json
  *
  * and then rebuilds:
  *
@@ -42,6 +42,7 @@ const VERSIONED_MANIFESTS = [
   { file: ".claude-plugin/plugin.json", indent: 2 },
   { file: ".codex-plugin/plugin.json", indent: 2 },
   { file: ".opencode/package.json", indent: 2 },
+  { file: "packages/ascendant-skills/package.json", indent: 2 },
 ];
 
 const pkgPath = path.join(ROOT_DIR, "package.json");

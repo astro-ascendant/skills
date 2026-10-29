@@ -1,0 +1,37 @@
+{
+  "name": "ascendant-skills",
+  "version": "2.0.1",
+  "description": "One command to install the Ascendant Vedic astrology skill and plugins into Claude Code, Codex, OpenCode, Cursor, Gemini CLI and more.",
+  "type": "module",
+  "bin": {
+    "ascendant-skills": "bin/cli.mjs"
+  },
+  "files": [
+    "bin/",
+    "lib/",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "AGPL-3.0-or-later",
+  "author": {
+    "name": "Laxman K R",
+    "email": "krlaxman03@gmail.com",
+    "url": "https://thaletto.vercel.app"
+  },
+  "homepage": "https://astro-ascendant.vercel.app",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/astro-ascendant/skills.git",
+    "directory": "packages/ascendant-skills"
+  },
+  "keywords": [
+    "agent-skills",
+    "claude-code",
+    "codex",
+    "opencode",
+    "astrology",
+    "vedic astrology"
+  ]
+}

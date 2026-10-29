@@ -19,13 +19,20 @@
         "typescript": "7.0.2",
       },
     },
+    "packages/ascendant-skills": {
+      "name": "ascendant-skills",
+      "version": "2.0.1",
+      "bin": {
+        "ascendant-skills": "bin/cli.mjs",
+      },
+    },
     "packages/opencode-ascendant": {
       "name": "opencode-ascendant",
-      "version": "2.0.0",
+      "version": "2.0.1",
       "dependencies": {
         "@effect/platform-bun": "^4.0.5",
         "@toon-format/toon": "^4.4.0",
-        "astro-ascendant": "^5.1.0",
+        "astro-ascendant": "^5.1.1",
       },
       "peerDependencies": {
         "@opencode/plugin": "^2.0.29",
@@ -402,6 +409,8 @@
     "ansi-regex": ["ansi-regex@6.4.0", "", {}, "sha512-KzTVk2tCWAHtYrvvvaP8bJKJq2pVinhLcGEQdtLIYPbmNGNyYe8QwNaTUYQp2J7/vIsUKt5QCqAfUkYyG9DkOw=="],
 
     "ansi-styles": ["ansi-styles@6.2.3", "", {}, "sha512-4Dj6M28JB+oAH8kFkTLUo+a2jwOFkuqb3yucU0CANcRRUbxS0cP0nZYCGjcc3BNXwRIsUVmDGgzawme7zvJHvg=="],
+
+    "ascendant-skills": ["ascendant-skills@workspace:packages/ascendant-skills"],
 
     "astro-ascendant": ["astro-ascendant@5.1.1", "", { "dependencies": { "@swisseph/node": "^1.4.0" }, "peerDependencies": { "effect": "^4.0.0" } }, "sha512-IaJvCfTRUZsfxpA5wNFq+g8WfWD03e3SOcNf/HmnmlA0h5CHjXzqIV8DZFbs6LlBD+J3/KDTjIVOrsSj9CPysQ=="],
 

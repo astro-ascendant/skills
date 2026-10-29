@@ -24,7 +24,7 @@
     "typecheck": "tsc --project skills/ascendant/tsconfig.json --noEmit && tsc --project .opencode/tsconfig.json --noEmit",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
-    "format": "oxfmt skills/ascendant/tools tests scripts .opencode/plugins *.json .oxlintrc.json .oxfmtrc.json skills/ascendant/tsconfig.json .opencode/tsconfig.json",
+    "format": "oxfmt skills/ascendant/tools tests scripts .opencode/plugins packages/ascendant-skills/bin packages/ascendant-skills/lib *.json .oxlintrc.json .oxfmtrc.json skills/ascendant/tsconfig.json .opencode/tsconfig.json",
     "format:check": "bun run format -- --check"
   },
   "dependencies": {
