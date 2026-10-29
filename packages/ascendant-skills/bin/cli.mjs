@@ -97,35 +97,36 @@ const choose = ({ providersFlag, scope, yes, detected }) =>
       return { providers, scope: scope ?? "global" };
     }
 
-    let providers;
-    if (providersFlag === undefined) {
-      const names = detected.map((id) => PROVIDERS.find((p) => p.id === id).name);
-      yield* Console.log(
-        detected.length > 0 ? `Detected: ${names.join(", ")}` : "No coding tools detected.",
-      );
-      const raw = yield* Prompt.run(
-        Prompt.String({
-          message: `Install for which tools? [${detected.length > 0 ? detected.join(",") : "e.g. claude,cursor"}]`,
-          default: detected.join(","),
-        }),
-      );
-      providers = raw.trim() === "" ? [] : yield* parseProvidersOrFail(raw);
-    } else {
-      providers = yield* parseProvidersOrFail(providersFlag);
-    }
+    // Every tool is listed; the detected ones start checked.
+    const providers =
+      providersFlag === undefined
+        ? yield* Prompt.run(
+            Prompt.MultiSelect({
+              message: "Install for which tools?",
+              choices: PROVIDERS.map((p) => ({
+                title: p.name,
+                value: p.id,
+                description: detected.includes(p.id) ? "detected" : undefined,
+                selected: detected.includes(p.id),
+              })),
+              min: 1,
+              // Room for every tool plus the select-all and inverse rows.
+              maxPerPage: PROVIDERS.length + 2,
+            }),
+          )
+        : yield* parseProvidersOrFail(providersFlag);
 
-    let chosenScope = scope;
-    if (chosenScope === undefined) {
-      chosenScope = yield* Prompt.run(
+    const chosenScope =
+      scope ??
+      (yield* Prompt.run(
         Prompt.Select({
           message: "Install for this project or globally?",
           choices: [
-            { title: "Globally", value: "global" },
-            { title: "This project", value: "project" },
+            { title: "Globally", value: "global", description: "For every project" },
+            { title: "This project", value: "project", description: "Only the current directory" },
           ],
         }),
-      );
-    }
+      ));
 
     return { providers, scope: chosenScope };
   });
