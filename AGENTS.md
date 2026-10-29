@@ -13,7 +13,7 @@ Most of the tree is **generated**; only a few directories are hand-authored.
 - `skills/ascendant/{instructions,references,scripts,tools,agents}/` is the skill payload, copied into plugin distributions. Tests live under the root `tests/` directory.
 - `.opencode/plugins/ascendant/` is the hand-written plugin.
 - `scripts/*.mjs` are the build and verification tools (dependency-free).
-- `packages/ascendant-skills/` is the hand-written `npx ascendant-skills install` CLI, built on `effect/cli` (Node, with `effect` and `@effect/platform-node` pinned exactly to 4.0.5). Its command matrix is `lib/plan.mjs` (pure, no Effect), tested by `tests/installer/`. Only its `version` is stamped by `sync-versions`.
+- `packages/ascendant-skills/` is the hand-written `npx ascendant-skills install` CLI, built on `effect/cli` (Node, with `effect`, `@effect/platform-node` and `@effect/platform-node-shared` pinned exactly to 4.0.5). Its command matrix is `lib/plan.mjs` (pure, no Effect), tested by `tests/installer/`. Only its `version` is stamped by `sync-versions`.
 - `UPDATE_ASTRO_ASCENDANT.md` is a hand-written maintenance runbook, not generated.
 
 Generated, committed, never hand-edit (a rebuild overwrites them and CI fails on drift):
@@ -59,7 +59,7 @@ bun scripts/build-opencode-plugin.mjs --check  # drift check, builds to a temp d
 - The OpenCode v2 host runs `effect` 4.0.0-beta and only serves public single-level `effect/*` subpaths.
 - Never import the `@effect/platform-bun` barrel. Use direct subpaths such as `@effect/platform-bun/BunFileSystem`; `check:plugin` rejects the barrel and deep paths.
 - `BunPath` fails the entire plugin load (the host's `effect/Path` has no `make`). Use the local layer in `skills/ascendant/tools/path.ts`; the header explains why.
-- `.opencode/package.json` pins exact versions and overrides `effect` to 4.0.5, and `skills/ascendant/scripts/setup.sh` pins the same versions for user installs. Bump them together, then refresh both lockfiles (`bun install` at root and inside `.opencode/`). `packages/ascendant-skills/package.json` pins the same `effect` version and must move with them.
+- `.opencode/package.json` pins exact versions and overrides `effect` to 4.0.5, and `skills/ascendant/scripts/setup.sh` pins the same versions for user installs. Bump them together, then refresh both lockfiles (`bun install` at root and inside `.opencode/`). `packages/ascendant-skills/package.json` pins the same `effect` version and must move with them. It also pins `@effect/platform-node-shared` directly: `@effect/platform-node` only asks for `^x.y.z`, so a fresh `npx` install otherwise pulls a newer shared release built for a newer `effect` and the CLI fails to load. Import `@effect/platform-node` by subpath (`/NodeRuntime`, `/NodeServices`), never the barrel. Before publishing, `bun pm pack` the package and run it from a fresh install; the workspace resolves differently.
 
 ## Release
 

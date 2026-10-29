@@ -15,7 +15,11 @@ import { fileURLToPath } from "node:url";
 import { Console, Effect, Option } from "effect";
 import { CliError, Command, Flag, Prompt } from "effect/cli";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
-import { NodeRuntime, NodeServices } from "@effect/platform-node";
+// Subpaths, not the barrel: the barrel also loads the socket and HTTP modules,
+// which this CLI never uses. package.json pins @effect/platform-node-shared so
+// a fresh install cannot pair it with a newer, incompatible shared release.
+import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
+import * as NodeServices from "@effect/platform-node/NodeServices";
 import { PROVIDERS, SCOPES, detectProviders, parseProviders, planInstall } from "../lib/plan.mjs";
 
 const IS_WINDOWS = process.platform === "win32";

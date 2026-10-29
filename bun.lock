@@ -21,18 +21,19 @@
     },
     "packages/ascendant-skills": {
       "name": "ascendant-skills",
-      "version": "2.0.1",
+      "version": "2.1.1",
       "bin": {
         "ascendant-skills": "bin/cli.mjs",
       },
       "dependencies": {
         "@effect/platform-node": "4.0.5",
+        "@effect/platform-node-shared": "4.0.5",
         "effect": "4.0.5",
       },
     },
     "packages/opencode-ascendant": {
       "name": "opencode-ascendant",
-      "version": "2.0.1",
+      "version": "2.1.1",
       "dependencies": {
         "@effect/platform-bun": "^4.0.5",
         "@toon-format/toon": "^4.4.0",
