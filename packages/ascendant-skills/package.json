@@ -1,6 +1,6 @@
 {
   "name": "ascendant-skills",
-  "version": "2.1.2",
+  "version": "2.1.3",
   "description": "One command to install the Ascendant Vedic astrology skill and plugins into Claude Code, Codex, OpenCode, Cursor, Gemini CLI and more.",
   "keywords": [
     "agent-skills",

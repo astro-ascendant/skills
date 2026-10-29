@@ -1,5 +1,11 @@
 # ascendant-skills
 
+## 2.1.3
+
+### Patch Changes
+
+- `npx ascendant-skills install` now asks which tools to install for with a checkbox list (detected tools pre-checked) instead of a comma-separated text prompt.
+
 ## 2.1.2
 
 ### Patch Changes
