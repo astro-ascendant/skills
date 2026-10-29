@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   detectProviders,
-  parseArgs,
+  parseProviders,
   planInstall,
 } from "../../packages/ascendant-skills/lib/plan.mjs";
 
@@ -10,25 +10,15 @@ const bins =
   (name) =>
     names.includes(name);
 
-describe("parseArgs", () => {
-  test("accepts inline and spaced flag values", () => {
-    expect(parseArgs(["install", "--providers=claude,cursor", "--scope", "project", "-y"])).toEqual(
-      {
-        command: "install",
-        providers: ["claude", "cursor"],
-        scope: "project",
-        yes: true,
-        dryRun: false,
-        help: false,
-      },
-    );
+describe("parseProviders", () => {
+  test("splits, trims and dedupes ids, and expands all", () => {
+    expect(parseProviders(" Claude, cursor,claude ")).toEqual(["claude", "cursor"]);
+    expect(parseProviders("all")).toContain("windsurf");
   });
 
-  test("expands all and rejects unknown providers, scopes and flags", () => {
-    expect(parseArgs(["install", "--providers=all"]).providers).toContain("windsurf");
-    expect(() => parseArgs(["install", "--providers=claud"])).toThrow("Unknown provider");
-    expect(() => parseArgs(["install", "--scope=local"])).toThrow("--scope");
-    expect(() => parseArgs(["install", "--force"])).toThrow("Unknown option");
+  test("rejects an empty value and unknown providers", () => {
+    expect(() => parseProviders("")).toThrow("--providers needs a value");
+    expect(() => parseProviders("claud")).toThrow("Unknown provider");
   });
 });
 
@@ -47,7 +37,7 @@ describe("planInstall", () => {
     const { steps, notes } = planInstall({
       providers: ["claude", "codex", "opencode", "cursor", "gemini"],
       scope: "global",
-      hasBin: bins("claude", "codex", "opencode"),
+      hasBin: bins("claude", "codex", "opencode", "npx"),
       opencodeMajor: 2,
     });
     expect(steps.map((s) => [s.command, ...s.args].join(" "))).toEqual([
@@ -69,8 +59,9 @@ describe("planInstall", () => {
       opencodeMajor: 1,
     });
     expect(steps).toHaveLength(1);
+    // No npx on PATH: hand off to bunx instead.
+    expect(steps[0].command).toBe("bunx");
     expect(steps[0].args).toEqual([
-      "-y",
       "skills",
       "add",
       "astro-ascendant/skills",

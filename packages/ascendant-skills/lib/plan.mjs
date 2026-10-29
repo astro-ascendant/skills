@@ -77,60 +77,14 @@ export const PROVIDERS = [
   },
 ];
 
-const PROVIDER_IDS = PROVIDERS.map((p) => p.id);
-const SCOPES = ["project", "global"];
+export const PROVIDER_IDS = PROVIDERS.map((p) => p.id);
+export const SCOPES = ["project", "global"];
 
 /**
- * Parse argv (without node and script). Accepts `--flag=value` and
- * `--flag value`. Throws on unknown flags, providers or scopes so a typo in
- * a scripted install fails loudly instead of installing nothing.
+ * Parse a comma-separated `--providers` value. Throws on an empty value or an
+ * unknown id so a typo in a scripted install fails loudly instead of
+ * installing nothing. `all` expands to every provider.
  */
-export function parseArgs(argv) {
-  const opts = {
-    command: undefined,
-    providers: undefined,
-    scope: undefined,
-    yes: false,
-    dryRun: false,
-    help: false,
-  };
-  const args = [...argv];
-  while (args.length > 0) {
-    const arg = args.shift();
-    const [flag, inline] = arg.startsWith("--") ? splitFlag(arg) : [arg, undefined];
-    const value = () => inline ?? args.shift();
-    switch (flag) {
-      case "-h":
-      case "--help":
-        opts.help = true;
-        break;
-      case "-y":
-      case "--yes":
-        opts.yes = true;
-        break;
-      case "--dry-run":
-        opts.dryRun = true;
-        break;
-      case "--providers":
-        opts.providers = parseProviders(value());
-        break;
-      case "--scope":
-        opts.scope = parseScope(value());
-        break;
-      default:
-        if (flag.startsWith("-")) throw new Error(`Unknown option: ${flag}`);
-        if (opts.command !== undefined) throw new Error(`Unexpected argument: ${flag}`);
-        opts.command = flag;
-    }
-  }
-  return opts;
-}
-
-function splitFlag(arg) {
-  const eq = arg.indexOf("=");
-  return eq === -1 ? [arg, undefined] : [arg.slice(0, eq), arg.slice(eq + 1)];
-}
-
 export function parseProviders(raw) {
   if (!raw) throw new Error(`--providers needs a value: ${PROVIDER_IDS.join(",")} or all`);
   const ids = raw
@@ -145,12 +99,6 @@ export function parseProviders(raw) {
     );
   }
   return [...new Set(ids)];
-}
-
-export function parseScope(raw) {
-  const scope = raw?.trim().toLowerCase();
-  if (!SCOPES.includes(scope)) throw new Error(`--scope must be one of: ${SCOPES.join(", ")}`);
-  return scope;
 }
 
 /**
@@ -229,11 +177,14 @@ export function planInstall({ providers, scope, hasBin, opencodeMajor }) {
   }
 
   if (skillAgents.length > 0) {
+    // `npx ascendant-skills` implies npx, but `bunx ascendant-skills` works
+    // too and Bun-only machines have no npx to hand off to.
+    const [runner, ...runnerArgs] = hasBin("npx") ? ["npx", "-y"] : ["bunx"];
     steps.push({
       label: `Agent Skills: ${skillAgents.join(", ")}`,
-      command: "npx",
+      command: runner,
       args: [
-        "-y",
+        ...runnerArgs,
         "skills",
         "add",
         REPO,
