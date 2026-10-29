@@ -75,6 +75,22 @@ const runStep = (step) =>
     return code === 0;
   }).pipe(Effect.orElseSucceed(() => false));
 
+const announce = (step) =>
+  Console.log(`→ ${step.label}\n  $ ${[step.command, ...step.args].join(" ")}`);
+
+/**
+ * Run a step; if it fails and carries `recover`, run those steps and retry the
+ * step once. A step without `recover` fails exactly as before.
+ */
+const runStepWithRecovery = (step) =>
+  Effect.gen(function* () {
+    if (yield* runStep(step)) return true;
+    if (step.recover === undefined) return false;
+    for (const fix of step.recover) yield* announce(fix);
+    for (const fix of step.recover) yield* runStep(fix);
+    return yield* runStep(step);
+  });
+
 const userError = (message) => new CliError.UserError({ cause: message });
 
 const parseProvidersOrFail = (raw) =>
@@ -186,9 +202,9 @@ const install = Command.make(
 
       const failed = [];
       for (const step of steps) {
-        yield* Console.log(`→ ${step.label}\n  $ ${[step.command, ...step.args].join(" ")}`);
+        yield* announce(step);
         if (dryRun) continue;
-        if (!(yield* runStep(step))) failed.push(step.label);
+        if (!(yield* runStepWithRecovery(step))) failed.push(step.label);
       }
 
       for (const note of notes) yield* Console.log(`\nNote: ${note}`);

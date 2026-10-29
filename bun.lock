@@ -21,7 +21,7 @@
     },
     "packages/ascendant-skills": {
       "name": "ascendant-skills",
-      "version": "2.1.1",
+      "version": "2.1.4",
       "bin": {
         "ascendant-skills": "bin/cli.mjs",
       },
@@ -33,7 +33,7 @@
     },
     "packages/opencode-ascendant": {
       "name": "opencode-ascendant",
-      "version": "2.1.1",
+      "version": "2.1.4",
       "dependencies": {
         "@effect/platform-bun": "^4.0.5",
         "@toon-format/toon": "^4.4.0",

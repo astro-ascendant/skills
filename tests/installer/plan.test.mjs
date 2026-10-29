@@ -45,10 +45,23 @@ describe("planInstall", () => {
       "claude plugin install ascendant@ascendant --scope user",
       "codex plugin marketplace add astro-ascendant/skills --ref main",
       "codex plugin add ascendant@ascendant",
-      "opencode plugin add opencode-ascendant -g",
+      "opencode plugin add opencode-ascendant",
       "npx -y skills add astro-ascendant/skills --skill ascendant --agent cursor gemini-cli --global --yes",
     ]);
     expect(notes).toEqual([]);
+  });
+
+  test("repairs a stale Codex marketplace source before retrying the add", () => {
+    const { steps } = planInstall({
+      providers: ["codex"],
+      scope: "global",
+      hasBin: bins("codex", "npx"),
+      opencodeMajor: undefined,
+    });
+    expect(steps[0].recover.map((s) => [s.command, ...s.args].join(" "))).toEqual([
+      "codex plugin marketplace remove ascendant",
+    ]);
+    expect(steps[1].recover).toBeUndefined();
   });
 
   test("falls back to the skill when a plugin CLI is missing or OpenCode is v1", () => {
@@ -84,5 +97,19 @@ describe("planInstall", () => {
     });
     expect(steps[0].args.at(-1)).toBe("project");
     expect(notes).toEqual(["Codex plugins are per-user; the Codex plugin installs globally."]);
+  });
+
+  test("notes that the OpenCode plugin is global under project scope", () => {
+    const { steps, notes } = planInstall({
+      providers: ["opencode"],
+      scope: "project",
+      hasBin: bins("opencode"),
+      opencodeMajor: 2,
+    });
+    // `opencode plugin add` rejects every scope flag, so none is passed.
+    expect(steps.map((s) => [s.command, ...s.args].join(" "))).toEqual([
+      "opencode plugin add opencode-ascendant",
+    ]);
+    expect(notes).toEqual(["OpenCode plugins are global; the OpenCode plugin installs globally."]);
   });
 });

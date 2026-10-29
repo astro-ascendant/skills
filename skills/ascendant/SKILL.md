@@ -1,7 +1,7 @@
 ---
 name: ascendant
 description: Produces cited KP or Parashari Vedic astrology readings from birth charts. Use for horoscope, kundli, dasha, transit or gochara timing, ruling planets, yogas, divisional charts, birth time rectification, or questions about marriage, career, health, money, family, education, property, travel, and yearly outlook. Also use to add or refresh a person, run setup, or analyze a chart the user provides.
-version: 2.1.3
+version: 2.1.4
 license: AGPL-3.0-or-later
 metadata:
   author: Laxman K R

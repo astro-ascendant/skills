@@ -1,6 +1,6 @@
 {
   "name": "ascendant-opencode-plugin",
-  "version": "2.1.3",
+  "version": "2.1.4",
   "private": true,
   "type": "module",
   "dependencies": {

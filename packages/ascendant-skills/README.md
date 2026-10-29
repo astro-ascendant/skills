@@ -12,7 +12,7 @@ It detects your coding tools, asks whether to install for this project or global
 | --- | --- |
 | Claude Code | `ascendant` plugin from the `astro-ascendant/skills` marketplace |
 | Codex | `ascendant` plugin from the `astro-ascendant/skills` marketplace (always per-user) |
-| OpenCode v2 | `opencode-ascendant` plugin |
+| OpenCode v2 | `opencode-ascendant` plugin (always global) |
 | Cursor, Gemini CLI, GitHub Copilot, Kiro, Pi, Grok Build, Antigravity, Windsurf | `ascendant` skill via `npx skills add` |
 
 A tool whose CLI is not on PATH (or OpenCode v1) gets the skill instead of the plugin.

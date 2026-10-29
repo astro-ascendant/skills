@@ -13,6 +13,7 @@
 
 export const REPO = "astro-ascendant/skills";
 export const SKILL = "ascendant";
+export const MARKETPLACE_NAME = "ascendant";
 export const MARKETPLACE_PLUGIN = "ascendant@ascendant";
 export const OPENCODE_PACKAGE = "opencode-ascendant";
 
@@ -112,6 +113,12 @@ export function detectProviders({ hasBin, hasHomeDir }) {
 }
 
 /**
+ * @typedef {{ label: string, command: string, args: string[] }} PlanStep
+ * A step may also carry `recover`: extra steps that repair a known precondition
+ * (a stale marketplace source, say) before the runner retries the step once.
+ */
+
+/**
  * Build the install plan.
  *
  * @param {object} input
@@ -119,7 +126,7 @@ export function detectProviders({ hasBin, hasHomeDir }) {
  * @param {"project"|"global"} input.scope
  * @param {(name: string) => boolean} input.hasBin whether a CLI is on PATH
  * @param {number | undefined} input.opencodeMajor OpenCode major version, if known
- * @returns {{ steps: Array<{ label: string, command: string, args: string[] }>, notes: string[] }}
+ * @returns {{ steps: PlanStep[], notes: string[] }}
  */
 export function planInstall({ providers, scope, hasBin, opencodeMajor }) {
   const steps = [];
@@ -151,6 +158,17 @@ export function planInstall({ providers, scope, hasBin, opencodeMajor }) {
           label: "Codex: add marketplace",
           command: "codex",
           args: ["plugin", "marketplace", "add", REPO, "--ref", "main"],
+          // Codex refuses to re-add a marketplace whose recorded source differs
+          // (one added without --ref, or from a local checkout) and does not
+          // upgrade it either, which would leave an old plugin in place. Drop
+          // that source, then let the retry add ours.
+          recover: [
+            {
+              label: "Codex: drop stale marketplace",
+              command: "codex",
+              args: ["plugin", "marketplace", "remove", MARKETPLACE_NAME],
+            },
+          ],
         },
         {
           label: "Codex: install plugin",
@@ -161,11 +179,15 @@ export function planInstall({ providers, scope, hasBin, opencodeMajor }) {
       if (scope === "project")
         notes.push("Codex plugins are per-user; the Codex plugin installs globally.");
     } else if (id === "opencode" && hasBin("opencode") && (opencodeMajor ?? 0) >= 2) {
+      // `opencode plugin add` always writes the global config and rejects every
+      // scope flag, so the scope cannot be passed here.
       steps.push({
         label: "OpenCode: install plugin",
         command: "opencode",
-        args: ["plugin", "add", OPENCODE_PACKAGE, ...(scope === "global" ? ["-g"] : [])],
+        args: ["plugin", "add", OPENCODE_PACKAGE],
       });
+      if (scope === "project")
+        notes.push("OpenCode plugins are global; the OpenCode plugin installs globally.");
     } else {
       if (id === "opencode" && hasBin("opencode")) {
         notes.push(
