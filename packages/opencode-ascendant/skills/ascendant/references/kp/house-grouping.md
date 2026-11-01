@@ -14,7 +14,7 @@ Events happens when the planet-lords of current dasa (dasa lord, antardasa lord,
 
 ## 1. Events relating First House
 
-| Type of Query/Event | Primary House | Supporting Houses |
+| Type of Query | Primary House | Supporting Houses |
 | --- | --- | --- |
 | Good health | 1 | 1,11 |
 | Proneness to disease | 1 | 6,8,12 |
@@ -185,3 +185,17 @@ Events happens when the planet-lords of current dasa (dasa lord, antardasa lord,
 | Success in research | 12 | 6,11 |
 | Export Business | 12 | 2,11 (10) |
 | Foreign Travel | 12 | 3,9 |
+
+## Other house groups
+
+Returning to home: 3, 9, 11. The source gives no primary or supporting split for this group.
+
+## Sources
+
+Every table above was checked row by row against one source on 2026-11-01: all 114 rows match, including the 6,7 of Service or Business and the 5,9 of Break in Service.
+
+- AstroSage, "KP Astrology - House Grouping": <https://sites.google.com/a/astrosage.com/kpastrology/kp-learning-home/house-grouping>. The page shows the tables as embedded documents, names no author or book, and is the origin of the introduction at the top of this file. It also gives the Returning to home group.
+- That page cites a KP discussion group message for Returning to home: <http://groups.yahoo.com/group/k_p_system/message/15870>. It was not opened for this check.
+- Rules for using a house group (promise by the cuspal sub lord, timing by the dasha lords) are in `fundamental-principles.md` in this folder.
+
+The source is a web page, not the original books; treat the groups as one KP tradition's formulas.
