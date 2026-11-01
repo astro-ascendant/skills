@@ -4,20 +4,20 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@effect/platform-bun": "4.0.5",
+    "@effect/platform-bun": "4.1.1",
     "@toon-format/toon": "4.4.0",
-    "astro-ascendant": "5.1.1"
+    "astro-ascendant": "6.1.0"
   },
   "peerDependencies": {
     "@opencode/plugin": "2.0.29",
     "@opencode/schema": "2.0.29",
-    "effect": "4.0.5"
+    "effect": "4.1.1"
   },
   "devDependencies": {
-    "bun-types": "1.4.3"
+    "bun-types": "1.4.4"
   },
   "overrides": {
-    "effect": "4.0.5"
+    "effect": "4.1.1"
   },
   "trustedDependencies": [
     "@swisseph/node",

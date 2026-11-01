@@ -143,7 +143,7 @@ function houseTable(chart: Chart.Chart): string {
   );
 }
 
-function planetSignificationTable(chart: Chart.Chart): string {
+function planetSignificationTable(chart: Chart.D1Chart): string {
   if (chart.planetSignifications === undefined) return "";
   const rows = Object.entries(chart.planetSignifications).map(([planet, signification]) => [
     planet,
@@ -155,7 +155,7 @@ function planetSignificationTable(chart: Chart.Chart): string {
   return markdownTable(["Planet", "Level 1", "Level 2", "Level 3", "Level 4"], rows);
 }
 
-function houseSignificatorTable(chart: Chart.Chart): string {
+function houseSignificatorTable(chart: Chart.D1Chart): string {
   if (chart.houseSignificators === undefined) return "";
   const rows = Object.entries(chart.houseSignificators).map(([house, significators]) => [
     Number(house),
@@ -167,7 +167,7 @@ function houseSignificatorTable(chart: Chart.Chart): string {
   return markdownTable(["House", "Level 1", "Level 2", "Level 3", "Level 4"], rows);
 }
 
-function rulingPlanetsTable(chart: Chart.Chart): string {
+function rulingPlanetsTable(chart: Chart.D1Chart): string {
   return markdownTable(
     ["Rank", "Planet"],
     (chart.rulingPlanets ?? []).map((planet, index) => [index + 1, planet]),
@@ -306,7 +306,7 @@ function formatSavMarkdown(result: Effect.Success<ReturnType<typeof SAV.calculat
 
 function formatKpD1Markdown(
   calculation: ReturnType<typeof calculationContext>,
-  chart: Chart.Chart,
+  chart: Chart.D1Chart,
 ): string {
   const kpLords = kpCuspAndPlanetLords(chart);
   const sections = [
