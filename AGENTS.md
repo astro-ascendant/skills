@@ -48,6 +48,7 @@ bun scripts/build-opencode-plugin.mjs --check  # drift check, builds to a temp d
 ## Architecture
 
 - `skills/ascendant/tools/*.ts` is the shared engine (Effect + `astro-ascendant`). CLI: `bun skills/ascendant/tools/ascendant.ts <add-person|transit|ruling-planets>`.
+- Each tool is defined once in `tool-specs.ts` (plain `effect` Schemas, name, description). `workflows.ts` holds one typed `Effect` per tool (typed input, `CommandError` out). `toolkit.ts` wraps the specs as an `effect/ai` Toolkit; `cli.ts` (`effect/cli`) and `ascendant.ts` are the command line. The OpenCode host does not serve `effect/ai` or `effect/cli`, so the plugin imports only `tool-specs.ts` and `workflows.ts`; `check:plugin` enforces it.
 - `.opencode/plugins/ascendant/` imports the engine as `../../../skills/ascendant/tools/*.ts`. `build-opencode-plugin.mjs` rewrites that prefix to `../skills` in the package, so keep the repo-relative form when editing plugin sources.
 - OpenCode registers the skill, the `/ascendant` command, and both tools programmatically. It reads `skills/ascendant/SKILL.md` at runtime, so there is no OpenCode skill copy to regenerate.
 - `skills/ascendant/scripts/ascendant.sh` copies an **explicit allowlist** of tool files into `./.ascendant-agent/` in the user's cwd. Any new file under `tools/` must be added there or the runtime copy will silently miss it.

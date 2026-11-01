@@ -1,6 +1,6 @@
 import { Tool } from "@opencode/schema/tool";
 
-import { CommandError } from "../../../skills/ascendant/tools/cli.ts";
+import { CommandError } from "../../../skills/ascendant/tools/errors.ts";
 
 export const describeCause = (cause: unknown): string =>
   cause instanceof Error ? cause.message : String(cause);

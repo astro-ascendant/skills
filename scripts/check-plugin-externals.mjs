@@ -56,6 +56,14 @@ const SOURCE_DIRS = [
   path.join(ROOT_DIR, "packages", "opencode-ascendant", "skills", "ascendant", "tools"),
 ];
 
+// Command-line entry points. They ship inside the skill copy but the plugin
+// never imports them, so the host never loads them: they may use platform
+// layers (BunServices) and `effect/cli` that plugin sources must avoid.
+// `toolkit.ts` is the `effect/ai` wrapper: the host does not serve `effect/ai`,
+// so plugin sources must import `tool-specs.ts` and `workflows.ts` instead.
+const CLI_ONLY_FILES = new Set(["ascendant.ts", "cli.ts", "toolkit.ts"]);
+const CLI_ONLY_SPECIFIER = /(^|\/)(ascendant|cli|toolkit)\.ts$/;
+
 // Manifests where host-provided modules must be peer-only.
 const PEER_ONLY_MANIFESTS = ["packages/opencode-ascendant/package.json", ".opencode/package.json"];
 const PEER_ONLY = ["effect", "@opencode/plugin", "@opencode/schema"];
@@ -72,7 +80,8 @@ function listTsFiles(dir) {
       entry.isFile() &&
       entry.name.endsWith(".ts") &&
       !entry.name.endsWith(".test.ts") &&
-      !entry.name.endsWith(".d.ts")
+      !entry.name.endsWith(".d.ts") &&
+      !(CLI_ONLY_FILES.has(entry.name) && dir.includes(`${path.sep}tools`))
     )
       out.push(full);
   }
@@ -100,6 +109,16 @@ function checkSources() {
         if (bunSub && !ALLOWED_BUN_SUBPATHS.has(bunSub[1])) {
           failures.push(
             `${rel}: imports "${spec}"; only ${[...ALLOWED_BUN_SUBPATHS].map((s) => `${BUN_BARREL}/${s}`).join(", ")} are verified host-safe`,
+          );
+        }
+        if (spec === "effect/ai" || spec === "effect/cli") {
+          failures.push(
+            `${rel}: imports "${spec}"; the OpenCode host does not serve it, so only CLI-only files may use it`,
+          );
+        }
+        if (CLI_ONLY_SPECIFIER.test(spec) && !CLI_ONLY_FILES.has(path.basename(file))) {
+          failures.push(
+            `${rel}: imports "${spec}", a CLI-only file; plugin code must use tool-specs.ts and workflows.ts`,
           );
         }
         const effectDeep = spec.match(/^effect\/([^"']*\/[^"']*)$/);

@@ -1,11 +1,9 @@
-import { VERSION } from "./version.ts";
+import * as BunRuntime from "@effect/platform-bun/BunRuntime";
+import * as BunServices from "@effect/platform-bun/BunServices";
+import { Effect } from "effect";
 
-const argv = process.argv.slice(2);
+import { cli } from "./cli.ts";
 
-if (argv.length === 1 && (argv[0] === "-v" || argv[0] === "-V" || argv[0] === "--version")) {
-  process.stdout.write(`${VERSION}\n`);
-} else {
-  const { run } = await import("./cli.ts");
-  const BunRuntime = await import("@effect/platform-bun/BunRuntime");
-  run(argv).pipe(BunRuntime.runMain);
-}
+// Failures print their own TOON report and carry their exit code, so the
+// runtime's default error log would only repeat them.
+cli.pipe(Effect.provide(BunServices.layer), BunRuntime.runMain({ disableErrorReporting: true }));

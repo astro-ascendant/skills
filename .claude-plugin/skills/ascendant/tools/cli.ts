@@ -1,677 +1,186 @@
 import { encode } from "@toon-format/toon";
-import { Chart, Swisseph, Transit } from "astro-ascendant";
-import { Data, Effect, FileSystem, Layer, Match, Path, Schema } from "effect";
+import { Console, Effect, Option, Schema } from "effect";
+import { Command, Flag } from "effect/cli";
 
-export class CommandError extends Data.TaggedError("CommandError")<{
-  readonly message: string;
-  readonly code: string;
-  readonly suggestions: ReadonlyArray<string>;
-}> {}
+import { CommandError } from "./errors.ts";
+import { PlatformLayer } from "./common.ts";
+import { AddPerson, CheckTransit, handlers, RulingPlanets } from "./toolkit.ts";
+import { ADD_PERSON_HELP, home, RULING_PLANETS_HELP, TRANSIT_HELP } from "./workflows.ts";
+import { VERSION } from "./version.ts";
 
-export function commandExitCode(error: unknown): number {
-  if (error instanceof CommandError && error.code === "VALIDATION_ERROR") return 2;
-  return 1;
-}
+type Raw = Record<string, unknown>;
 
-import { searchTransits } from "./check-transit.ts";
-import {
-  AppLayer,
-  KpAstroParamsLayer,
-  Latitude,
-  Longitude,
-  OffsetMoment,
-  PersonName,
-  PersonRecordConflict,
-  PersonRecordNotFound,
-  PlatformLayer,
-  readStoredPerson,
-  Sex,
-} from "./common.ts";
-import { addPersonFromInput } from "./add-person.ts";
-import { rulingPlanetsWorkflow } from "./ruling-planets.ts";
-
-const DESCRIPTION = "Calculate saved Vedic astrology records and search transits";
-const ADD_PERSON_HELP =
-  'Run `ascendant add-person --name "<name>" --moment "<ISO-8601>" --latitude <latitude> --longitude <longitude> [--sex Male|Female]`';
-const TRANSIT_HELP =
-  'Run `ascendant transit --name "<name>" --moment "<ISO-8601>" --planet <graha> [--school kp|parashari] [--direction forward|backward] [--kinds sign-ingress,...] [--count <1-100>] [--target-longitude <0-360>] [--house <1-12>] [--max-years <years>] [--precision-minutes <minutes>]`';
-const RULING_PLANETS_HELP =
-  'Run `ascendant ruling-planets --moment "<ISO-8601>" (--name "<name>" | --latitude <latitude> --longitude <longitude>)`';
-const TOP_LEVEL_HELP = `${encode({
-  command: "ascendant",
-  description: DESCRIPTION,
-  commands: [
-    {
-      name: "add-person",
-      description: "Create or refresh Vedic charts plus a separate KP D1",
-    },
-    {
-      name: "transit",
-      description: "Search upcoming or past transit events for a saved person",
-    },
-    {
-      name: "ruling-planets",
-      description: "Read KP ruling planets for a judgment moment and place",
-    },
-  ],
-  help: ["Run `ascendant <command> --help` for command flags and examples"],
-})}\n`;
-
-interface ParsedFlags {
-  readonly [name: string]: string;
-}
-
-const TransitCommandInput = Schema.Struct({
-  name: PersonName,
-  moment: OffsetMoment,
-  planet: Chart.Planets,
-  school: Schema.optional(Schema.Literals(["kp", "parashari"])),
-  direction: Schema.optional(Transit.TransitDirection),
-  kinds: Schema.optional(Schema.String),
-  count: Schema.optional(
-    Schema.Finite.pipe(Schema.check(Schema.isBetween({ minimum: 1, maximum: 100 }))),
-  ),
-  targetLongitude: Schema.optional(
-    Schema.Finite.pipe(Schema.check(Schema.isBetween({ minimum: 0, maximum: 360 }))),
-  ),
-  house: Schema.optional(Chart.Houses),
-  maxYears: Schema.optional(Schema.Finite),
-  precisionMinutes: Schema.optional(Schema.Finite),
-});
-
-interface TransitCommandInput extends Schema.Schema.Type<typeof TransitCommandInput> {}
-
-const AddPersonCommandInput = Schema.Struct({
-  name: PersonName,
-  moment: OffsetMoment,
-  latitude: Latitude,
-  longitude: Longitude,
-  sex: Schema.optional(Sex),
-});
-
-interface AddPersonCommandInput extends Schema.Schema.Type<typeof AddPersonCommandInput> {}
-
-const RulingPlanetsCommandInput = Schema.Struct({
-  moment: OffsetMoment,
-  name: Schema.optional(PersonName),
-  latitude: Schema.optional(Latitude),
-  longitude: Schema.optional(Longitude),
-});
-
-interface RulingPlanetsCommandInput extends Schema.Schema.Type<typeof RulingPlanetsCommandInput> {}
-
-function parseFlags(
-  command: string,
-  args: ReadonlyArray<string>,
-  allowed: ReadonlyArray<string>,
-  required: ReadonlyArray<string>,
-  help: string,
-): ParsedFlags {
-  const parsed: Record<string, string> = {};
-
-  for (let index = 0; index < args.length; index += 2) {
-    const flag = args[index];
-    if (flag === undefined || !flag.startsWith("--")) {
-      throw new CommandError({
-        message: `Unexpected argument for ${command}: ${flag ?? ""}`,
-        code: "VALIDATION_ERROR",
-        suggestions: [help],
-      });
-    }
-    if (!allowed.includes(flag)) {
-      throw new CommandError({
-        message: `Unknown flag for ${command}: ${flag}`,
-        code: "VALIDATION_ERROR",
-        suggestions: [`Valid flags: ${allowed.join(", ")}`, help],
-      });
-    }
-
-    const value = args[index + 1];
-    if (value === undefined || value.startsWith("--")) {
-      throw new CommandError({
-        message: `Missing value for flag: ${flag}`,
-        code: "VALIDATION_ERROR",
-        suggestions: [help],
-      });
-    }
-    if (parsed[flag] !== undefined) {
-      throw new CommandError({
-        message: `Duplicate flag: ${flag}`,
-        code: "VALIDATION_ERROR",
-        suggestions: [help],
-      });
-    }
-    parsed[flag] = value;
-  }
-
-  for (const flag of required) {
-    if (parsed[flag] === undefined) {
-      throw new CommandError({
-        message: `Missing required flag: ${flag}`,
-        code: "VALIDATION_ERROR",
-        suggestions: [help],
-      });
-    }
-  }
-
-  return parsed;
-}
-
-function flagValue(parsed: ParsedFlags, name: string): string {
-  const value = parsed[name];
-  if (value !== undefined) return value;
-  throw new CommandError({
-    message: `Missing required flag: ${name}`,
-    code: "VALIDATION_ERROR",
-    suggestions: [],
-  });
-}
-
-interface CommandFailure {
-  readonly code: string;
-  readonly message: string;
-  readonly help: string;
-}
-
-function domainError(error: unknown, name: string, fallback: CommandFailure): CommandError {
-  return Match.value(error).pipe(
-    Match.when(
-      Match.instanceOf(PersonRecordNotFound),
-      (notFound) =>
-        new CommandError({
-          message: notFound.message,
-          code: "PERSON_NOT_FOUND",
-          suggestions: [
-            `Run \`ascendant add-person --name "${name}" --moment "<ISO-8601>" --latitude <latitude> --longitude <longitude>\``,
-          ],
-        }),
-    ),
-    Match.when(
-      Match.instanceOf(PersonRecordConflict),
-      (conflict) =>
-        new CommandError({
-          message: conflict.message,
-          code: "PERSON_RECORD_CONFLICT",
-          suggestions: [],
-        }),
-    ),
-    Match.when(
-      Match.instanceOf(Transit.TransitValidationError),
-      (invalid) =>
-        new CommandError({
-          message: invalid.message,
-          code: "VALIDATION_ERROR",
-          suggestions: [TRANSIT_HELP],
-        }),
-    ),
-    Match.when(
-      Match.instanceOf(Transit.TransitSearchExhausted),
-      (exhausted) =>
-        new CommandError({
-          message: exhausted.message,
-          code: "TRANSIT_SEARCH_EXHAUSTED",
-          suggestions: [
-            `Found ${exhausted.found.length} events before the search window ran out; retry with a larger --max-years`,
-          ],
-        }),
-    ),
-    Match.orElse(
-      () =>
-        new CommandError({
-          message: fallback.message,
-          code: fallback.code,
-          suggestions: [fallback.help],
-        }),
+/** Keeps only the flags the caller set, unwrapping the optional ones. */
+const compact = (fields: Raw): Raw =>
+  Object.fromEntries(
+    Object.entries(fields).flatMap(([key, value]) =>
+      Option.isOption(value) ? (Option.isSome(value) ? [[key, value.value]] : []) : [[key, value]],
     ),
   );
-}
 
-export const transitWorkflow = Effect.fn("Ascendant.transitWorkflow")(function* (
-  args: ReadonlyArray<string>,
-) {
-  const parsed = parseFlags(
-    "transit",
-    args,
-    [
-      "--name",
-      "--moment",
-      "--planet",
-      "--school",
-      "--direction",
-      "--kinds",
-      "--count",
-      "--target-longitude",
-      "--house",
-      "--max-years",
-      "--precision-minutes",
-    ],
-    ["--name", "--moment", "--planet"],
-    TRANSIT_HELP,
-  );
-  const input = yield* Schema.decodeUnknownEffect(TransitCommandInput)({
-    name: flagValue(parsed, "--name"),
-    moment: flagValue(parsed, "--moment"),
-    planet: flagValue(parsed, "--planet"),
-    ...(parsed["--school"] !== undefined ? { school: parsed["--school"] } : {}),
-    ...(parsed["--direction"] !== undefined ? { direction: parsed["--direction"] } : {}),
-    ...(parsed["--kinds"] !== undefined ? { kinds: parsed["--kinds"] } : {}),
-    ...(parsed["--count"] !== undefined ? { count: Number(parsed["--count"]) } : {}),
-    ...(parsed["--target-longitude"] !== undefined
-      ? { targetLongitude: Number(parsed["--target-longitude"]) }
-      : {}),
-    ...(parsed["--house"] !== undefined ? { house: Number(parsed["--house"]) } : {}),
-    ...(parsed["--max-years"] !== undefined ? { maxYears: Number(parsed["--max-years"]) } : {}),
-    ...(parsed["--precision-minutes"] !== undefined
-      ? { precisionMinutes: Number(parsed["--precision-minutes"]) }
-      : {}),
-  }).pipe(
+/** Decodes flags with the same schema the plugin uses for the tool. */
+const decode = <A, I>(schema: Schema.Codec<A, I>, raw: Raw, help: string) =>
+  Schema.decodeUnknownEffect(schema)(raw).pipe(
     Effect.mapError(
       (error) =>
-        new CommandError({
-          message: error.message,
-          code: "VALIDATION_ERROR",
-          suggestions: [TRANSIT_HELP],
-        }),
+        new CommandError({ message: error.message, code: "VALIDATION_ERROR", suggestions: [help] }),
     ),
   );
 
-  const kinds = yield* Effect.forEach(
-    (input.kinds ?? "sign-ingress").split(",").map((kind) => kind.trim()),
-    (kind) =>
-      Schema.decodeUnknownEffect(Transit.TransitKind)(kind).pipe(
-        Effect.mapError(
-          () =>
-            new CommandError({
-              message: `Unknown transit kind: ${kind}`,
-              code: "VALIDATION_ERROR",
-              suggestions: [
-                "Valid kinds: sign-ingress, cusp-crossing, longitude-hit, station",
-                TRANSIT_HELP,
-              ],
-            }),
+/** Prints a result as TOON, or a failure as TOON on stdout, then fails with it. */
+const emit = <E>(effect: Effect.Effect<Raw, E>) =>
+  effect.pipe(
+    Effect.tapError((error) =>
+      Console.log(
+        encode(
+          error instanceof CommandError
+            ? { error: error.message, code: error.code, help: error.suggestions }
+            : { error: String(error), code: "UNKNOWN", help: [] },
         ),
       ),
-  );
-  if (kinds.length === 0) {
-    return yield* Effect.fail(
-      new CommandError({
-        message: "At least one transit kind is required",
-        code: "VALIDATION_ERROR",
-        suggestions: [TRANSIT_HELP],
-      }),
-    );
-  }
-  const [firstKind, ...restKinds] = kinds;
-  if (firstKind === undefined) {
-    return yield* Effect.fail(
-      new CommandError({
-        message: "At least one transit kind is required",
-        code: "VALIDATION_ERROR",
-        suggestions: [TRANSIT_HELP],
-      }),
-    );
-  }
-
-  return yield* searchTransits(input.name, input.moment, {
-    planet: input.planet,
-    school: input.school === "kp" ? "KP" : "Parashari",
-    direction: input.direction ?? "forward",
-    kinds: [firstKind, ...restKinds],
-    count: input.count ?? 5,
-    ...(input.targetLongitude !== undefined ? { targetLongitude: input.targetLongitude } : {}),
-    ...(input.house !== undefined ? { house: input.house } : {}),
-    ...(input.maxYears !== undefined ? { maxYears: input.maxYears } : {}),
-    ...(input.precisionMinutes !== undefined ? { precisionMinutes: input.precisionMinutes } : {}),
-  }).pipe(
-    Effect.mapError((error) =>
-      domainError(error, input.name, {
-        code: "TRANSIT_FAILED",
-        message: "Unable to search transits",
-        help: "Verify the saved person record and search flags, then retry",
-      }),
     ),
+    Effect.flatMap((output) => Console.log(encode(output))),
   );
-});
 
-export const addPersonWorkflow = Effect.fn("Ascendant.addPersonWorkflow")(function* (
-  args: ReadonlyArray<string>,
-) {
-  const parsed = parseFlags(
-    "add-person",
-    args,
-    ["--name", "--moment", "--latitude", "--longitude", "--sex"],
-    ["--name", "--moment", "--latitude", "--longitude"],
-    ADD_PERSON_HELP,
-  );
-  const input = yield* Schema.decodeUnknownEffect(AddPersonCommandInput)({
-    name: flagValue(parsed, "--name"),
-    moment: flagValue(parsed, "--moment"),
-    latitude: Number(flagValue(parsed, "--latitude")),
-    longitude: Number(flagValue(parsed, "--longitude")),
-    ...(parsed["--sex"] !== undefined ? { sex: parsed["--sex"] } : {}),
-  }).pipe(
-    Effect.mapError(
-      (error) =>
-        new CommandError({
-          message: error.message,
-          code: "VALIDATION_ERROR",
-          suggestions: [ADD_PERSON_HELP],
-        }),
+const name = Flag.String("name").pipe(Flag.withDescription("Saved person name"));
+const moment = (description: string) =>
+  Flag.String("moment").pipe(Flag.withDescription(description));
+const latitude = Flag.Finite("latitude").pipe(Flag.withDescription("Latitude from -90 to 90"));
+const longitude = Flag.Finite("longitude").pipe(Flag.withDescription("Longitude from -180 to 180"));
+
+const addPerson = Command.make(
+  "add-person",
+  {
+    name,
+    moment: moment("Offset-aware ISO 8601 birth moment"),
+    latitude,
+    longitude,
+    sex: Flag.Literals("sex", ["Male", "Female"]).pipe(
+      Flag.withDescription("Birth sex"),
+      Flag.optional,
     ),
-  );
-
-  return yield* addPersonFromInput(
-    input.name,
-    input.moment,
-    input.latitude,
-    input.longitude,
-    input.sex,
-  ).pipe(
-    Effect.mapError((error) =>
-      domainError(error, input.name, {
-        code: "ADD_PERSON_FAILED",
-        message: "Unable to add the person record",
-        help: "Verify the birth data and current working directory, then retry",
-      }),
-    ),
-  );
-});
-
-const rulingPlanetsCliWorkflow = Effect.fn("Ascendant.rulingPlanetsCliWorkflow")(function* (
-  args: ReadonlyArray<string>,
-) {
-  const parsed = parseFlags(
-    "ruling-planets",
-    args,
-    ["--name", "--moment", "--latitude", "--longitude"],
-    ["--moment"],
-    RULING_PLANETS_HELP,
-  );
-  const input = yield* Schema.decodeUnknownEffect(RulingPlanetsCommandInput)({
-    moment: flagValue(parsed, "--moment"),
-    ...(parsed["--name"] !== undefined ? { name: parsed["--name"] } : {}),
-    ...(parsed["--latitude"] !== undefined ? { latitude: Number(parsed["--latitude"]) } : {}),
-    ...(parsed["--longitude"] !== undefined ? { longitude: Number(parsed["--longitude"]) } : {}),
-  }).pipe(
-    Effect.mapError(
-      (error) =>
-        new CommandError({
-          message: error.message,
-          code: "VALIDATION_ERROR",
-          suggestions: [RULING_PLANETS_HELP],
-        }),
-    ),
-  );
-
-  let latitude = input.latitude;
-  let longitude = input.longitude;
-  if (latitude === undefined || longitude === undefined) {
-    if (input.name === undefined) {
-      return yield* Effect.fail(
-        new CommandError({
-          message: "Provide --latitude and --longitude, or --name of a saved person",
-          code: "VALIDATION_ERROR",
-          suggestions: [RULING_PLANETS_HELP],
-        }),
-      );
-    }
-    const person = yield* readStoredPerson(input.name).pipe(
-      Effect.mapError((error) =>
-        domainError(error, input.name ?? "", {
-          code: "RULING_PLANETS_FAILED",
-          message: "Unable to read the saved person record",
-          help: "Verify the person name and current working directory, then retry",
-        }),
+  },
+  (flags) =>
+    emit(
+      decode(AddPerson.parametersSchema, compact(flags), ADD_PERSON_HELP).pipe(
+        Effect.flatMap(handlers.ascendant_add_person),
       ),
-    );
-    latitude ??= person.latitude;
-    longitude ??= person.longitude;
-  }
-
-  return yield* rulingPlanetsWorkflow(input.moment, latitude, longitude).pipe(
-    Effect.mapError((error) =>
-      domainError(error, input.name ?? "", {
-        code: "RULING_PLANETS_FAILED",
-        message: "Unable to read ruling planets",
-        help: "Verify the judgment moment and place, then retry",
-      }),
     ),
-  );
-});
-
-const homeView = Effect.fn("Ascendant.homeView")(function* () {
-  const fs = yield* FileSystem.FileSystem;
-  const path = yield* Path.Path;
-  const personsDirectory = "persons";
-  const directoryExists = yield* fs.exists(personsDirectory);
-
-  if (!directoryExists) {
-    return {
-      persons: {
-        count: 0,
-        records: [],
-      },
-      help: [
-        'Run `ascendant add-person --name "<name>" --moment "<ISO-8601>" --latitude <latitude> --longitude <longitude> [--sex Male|Female>]`',
-      ],
-    };
-  }
-
-  const entries = yield* fs.readDirectory(personsDirectory);
-  const records = yield* Effect.filter(entries, (entry) =>
-    fs.exists(path.join(personsDirectory, entry, "input.md")),
-  );
-
-  return {
-    persons: {
-      count: records.length,
-      records: [...records].sort().map((name: string) => ({ name, status: "ready" })),
+).pipe(
+  Command.withDescription("Create or refresh Vedic charts plus a separate KP D1"),
+  Command.withExamples([
+    {
+      command:
+        'ascendant add-person --name "Ada" --moment "1990-01-01T12:00:00+05:30" --latitude 12.9716 --longitude 77.5946',
+      description: "Save a person from birth data",
     },
-    help: [
-      'Run `ascendant transit --name "<name>" --moment "<ISO-8601>" --planet <graha>`',
-      'Run `ascendant add-person --name "<name>" --moment "<ISO-8601>" --latitude <latitude> --longitude <longitude> [--sex Male|Female>]`',
-    ],
-  };
-});
+  ]),
+);
 
-function homeCommand(): Promise<Record<string, unknown>> {
-  return Effect.runPromise(homeView().pipe(Effect.provide(PlatformLayer)));
-}
-
-function transitCommand(args: string[]): Promise<Record<string, unknown>> {
-  const schoolIndex = args.indexOf("--school");
-  const schoolValue = schoolIndex === -1 ? undefined : args[schoolIndex + 1];
-  const layer =
-    schoolValue === "kp"
-      ? Layer.mergeAll(PlatformLayer, KpAstroParamsLayer, Swisseph.SwissephLayer)
-      : AppLayer;
-  return Effect.runPromise(
-    transitWorkflow(args).pipe(
-      Effect.map((output) => ({ ...output })),
-      Effect.provide(layer),
+const transit = Command.make(
+  "transit",
+  {
+    name,
+    moment: moment("Offset-aware ISO 8601 start moment"),
+    planet: Flag.String("planet").pipe(
+      Flag.withDescription(
+        "Graha: Sun, Moon, Mars, Mercury, Venus, Jupiter, Saturn, Rahu, or Ketu",
+      ),
     ),
-  );
-}
-
-function rulingPlanetsCommand(args: string[]): Promise<Record<string, unknown>> {
-  const layer = Layer.mergeAll(PlatformLayer, KpAstroParamsLayer, Swisseph.SwissephLayer);
-  return Effect.runPromise(
-    rulingPlanetsCliWorkflow(args).pipe(
-      Effect.map((output) => ({ ...output })),
-      Effect.provide(layer),
+    school: Flag.Literals("school", ["kp", "parashari"]).pipe(
+      Flag.withDescription(
+        "parashari (default, Lahiri/WholeSign) or kp (KrishnamurtiVP291/Placidus)",
+      ),
+      Flag.optional,
     ),
-  );
-}
-
-function addPersonCommand(args: string[]): Promise<Record<string, unknown>> {
-  return Effect.runPromise(
-    addPersonWorkflow(args).pipe(
-      Effect.map((output) => ({ ...output })),
-      Effect.provide(AppLayer),
+    direction: Flag.String("direction").pipe(
+      Flag.withDescription("forward (default) or backward"),
+      Flag.optional,
     ),
-  );
-}
-
-function commandHelp(command: string): string | null {
-  return Match.value(command).pipe(
-    Match.when(
-      "add-person",
-      () =>
-        `${encode({
-          command: "add-person",
-          description: "Create or refresh Vedic charts plus a separate KP D1",
-          flags: {
-            "--name": "Required saved person name",
-            "--moment": "Required offset-aware ISO 8601 birth moment",
-            "--latitude": "Required latitude from -90 to 90",
-            "--longitude": "Required longitude from -180 to 180",
-            "--sex": "Optional birth sex: Male or Female",
-          },
-          examples: [
-            'ascendant add-person --name "Ada" --moment "1990-01-01T12:00:00+05:30" --latitude 12.9716 --longitude 77.5946',
-            'ascendant add-person --name "Ada" --moment "1990-01-01T12:00:00+05:30" --latitude 12.9716 --longitude 77.5946 --sex Female',
-          ],
-        })}\n`,
+    kinds: Flag.String("kinds").pipe(
+      Flag.withDescription(
+        "Comma-separated kinds (default sign-ingress): sign-ingress, cusp-crossing, longitude-hit, station",
+      ),
+      Flag.map((value) => value.split(",").map((kind) => kind.trim())),
+      Flag.optional,
     ),
-    Match.when(
-      "transit",
-      () =>
-        `${encode({
-          command: "transit",
-          description: "Search transit events from a saved person's location",
-          flags: {
-            "--name": "Required saved person name",
-            "--moment": "Required offset-aware ISO 8601 start moment",
-            "--planet":
-              "Required graha: Sun, Moon, Mars, Mercury, Venus, Jupiter, Saturn, Rahu, or Ketu",
-            "--school":
-              "Optional school: parashari (default, Lahiri/WholeSign) or kp (KrishnamurtiVP291/Placidus)",
-            "--direction": "Optional search direction: forward (default) or backward",
-            "--kinds":
-              "Optional comma-separated kinds (default sign-ingress): sign-ingress, cusp-crossing, longitude-hit, station",
-            "--count": "Optional number of events from 1 to 100 (default 5)",
-            "--target-longitude": "Required for longitude-hit: sidereal longitude from 0 to 360",
-            "--house": "Required for cusp-crossing: natal house from 1 to 12",
-            "--max-years": "Optional search window in years (default 30)",
-            "--precision-minutes": "Optional refinement precision in minutes (default 1)",
-          },
-          examples: [
-            'ascendant transit --name "Ada" --moment "2026-08-27T22:00:00+05:30" --planet Jupiter',
-            'ascendant transit --name "Ada" --moment "2026-08-27T22:00:00+05:30" --planet Saturn --kinds sign-ingress,station --count 3 --direction forward',
-            'ascendant transit --name "Ada" --moment "2026-08-27T22:00:00+05:30" --planet Jupiter --school kp',
-          ],
-        })}\n`,
+    count: Flag.Finite("count").pipe(
+      Flag.withDescription("Number of events from 1 to 100 (default 5)"),
+      Flag.optional,
     ),
-    Match.when(
-      "ruling-planets",
-      () =>
-        `${encode({
-          command: "ruling-planets",
-          description: "Read KP ruling planets for a judgment moment and place",
-          flags: {
-            "--moment": "Required offset-aware ISO 8601 judgment moment",
-            "--name":
-              "Optional saved person name (uses their birthplace when --latitude/--longitude are absent)",
-            "--latitude": "Latitude from -90 to 90 (required without --name)",
-            "--longitude": "Longitude from -180 to 180 (required without --name)",
-          },
-          examples: [
-            'ascendant ruling-planets --moment "2026-09-23T10:00:00+05:30" --latitude 12.9716 --longitude 77.5946',
-            'ascendant ruling-planets --moment "2026-09-23T10:00:00+05:30" --name "Ada"',
-          ],
-        })}\n`,
+    targetLongitude: Flag.Finite("target-longitude").pipe(
+      Flag.withDescription("Required for longitude-hit: sidereal longitude from 0 to 360"),
+      Flag.optional,
     ),
-    Match.orElse(() => null),
-  );
-}
+    house: Flag.Finite("house").pipe(
+      Flag.withDescription("Required for cusp-crossing: natal house from 1 to 12"),
+      Flag.optional,
+    ),
+    maxYears: Flag.Finite("max-years").pipe(
+      Flag.withDescription("Search window in years (default 30)"),
+      Flag.optional,
+    ),
+    precisionMinutes: Flag.Finite("precision-minutes").pipe(
+      Flag.withDescription("Refinement precision in minutes (default 1)"),
+      Flag.optional,
+    ),
+  },
+  (flags) =>
+    emit(
+      decode(CheckTransit.parametersSchema, compact(flags), TRANSIT_HELP).pipe(
+        Effect.flatMap(handlers.ascendant_check_transit),
+      ),
+    ),
+).pipe(
+  Command.withDescription("Search transit events from a saved person's location"),
+  Command.withExamples([
+    {
+      command:
+        'ascendant transit --name "Ada" --moment "2026-08-27T22:00:00+05:30" --planet Jupiter',
+      description: "Next Jupiter sign ingress",
+    },
+    {
+      command:
+        'ascendant transit --name "Ada" --moment "2026-08-27T22:00:00+05:30" --planet Saturn --kinds sign-ingress,station --count 3',
+      description: "Next three Saturn ingresses and stations",
+    },
+  ]),
+);
 
-function writeOutput(output: Record<string, unknown>): void {
-  process.stdout.write(`${encode(output)}\n`);
-}
+const rulingPlanets = Command.make(
+  "ruling-planets",
+  {
+    moment: moment("Offset-aware ISO 8601 judgment moment"),
+    name: name.pipe(
+      Flag.withDescription("Saved person; uses their birthplace without --latitude/--longitude"),
+      Flag.optional,
+    ),
+    latitude: latitude.pipe(Flag.optional),
+    longitude: longitude.pipe(Flag.optional),
+  },
+  (flags) =>
+    emit(
+      decode(RulingPlanets.parametersSchema, compact(flags), RULING_PLANETS_HELP).pipe(
+        Effect.flatMap(handlers.ascendant_ruling_planets),
+      ),
+    ),
+).pipe(
+  Command.withDescription("Read KP ruling planets for a judgment moment and place"),
+  Command.withExamples([
+    {
+      command:
+        'ascendant ruling-planets --moment "2026-09-23T10:00:00+05:30" --latitude 12.9716 --longitude 77.5946',
+      description: "Ruling planets for a place",
+    },
+  ]),
+);
 
-function writeError(error: unknown): void {
-  const formatted =
-    error instanceof CommandError
-      ? error
-      : new CommandError({
-          message: error instanceof Error ? error.message : String(error),
-          code: "UNKNOWN",
-          suggestions: [],
-        });
-  writeOutput({
-    error: formatted.message,
-    code: formatted.code,
-    help: formatted.suggestions,
-  });
-  process.exitCode = commandExitCode(formatted);
-}
+const ascendant = Command.make("ascendant", {}, () =>
+  emit(home().pipe(Effect.provide(PlatformLayer))),
+).pipe(
+  Command.withDescription("Calculate saved Vedic astrology records and search transits"),
+  Command.withSubcommands([addPerson, transit, rulingPlanets]),
+);
 
-function commandHandler(
-  command: string,
-): ((args: string[]) => Promise<Record<string, unknown>>) | undefined {
-  return Match.value(command).pipe(
-    Match.when("add-person", () => addPersonCommand),
-    Match.when("transit", () => transitCommand),
-    Match.when("ruling-planets", () => rulingPlanetsCommand),
-    Match.orElse(() => undefined),
-  );
-}
-
-async function runCli(argv: ReadonlyArray<string>): Promise<void> {
-  if (argv.length === 0) {
-    try {
-      writeOutput(await homeCommand());
-    } catch (error) {
-      writeError(error);
-    }
-    return;
-  }
-
-  if (argv.length === 1 && argv[0] === "--help") {
-    process.stdout.write(TOP_LEVEL_HELP);
-    return;
-  }
-
-  const command = argv[0];
-  if (command === undefined || command.startsWith("-")) {
-    writeError(
-      new CommandError({
-        message: "Flags must come after a command",
-        code: "VALIDATION_ERROR",
-        suggestions: ["Run `ascendant <command> --help` to see available commands"],
-      }),
-    );
-    return;
-  }
-
-  const args = argv.slice(1);
-  if (args.includes("--help")) {
-    const help = commandHelp(command);
-    if (help !== null) {
-      process.stdout.write(help);
-      return;
-    }
-  }
-
-  const handler = commandHandler(command);
-  if (handler === undefined) {
-    writeError(
-      new CommandError({
-        message: `Unknown command: ${command}`,
-        code: "VALIDATION_ERROR",
-        suggestions: ["Run `ascendant --help` to see available commands"],
-      }),
-    );
-    return;
-  }
-
-  try {
-    writeOutput(await handler(args));
-  } catch (error) {
-    writeError(error);
-  }
-}
-
-export const run = Effect.fn("Ascendant.runCli")(function* (argv: ReadonlyArray<string>) {
-  yield* Effect.promise(() => runCli(argv));
-});
+/** The `ascendant` command line. Provide platform services and run it. */
+export const cli = ascendant.pipe(Command.run({ version: VERSION }));

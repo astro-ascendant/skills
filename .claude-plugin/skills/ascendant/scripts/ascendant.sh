@@ -43,6 +43,10 @@ cp "${SKILL_DIR}/tools/ascendant.ts" \
   "${SKILL_DIR}/tools/cli.ts" \
   "${SKILL_DIR}/tools/common.ts" \
   "${SKILL_DIR}/tools/contract.ts" \
+  "${SKILL_DIR}/tools/errors.ts" \
+  "${SKILL_DIR}/tools/tool-specs.ts" \
+  "${SKILL_DIR}/tools/toolkit.ts" \
+  "${SKILL_DIR}/tools/workflows.ts" \
   "${SKILL_DIR}/tools/check-transit.ts" \
   "${SKILL_DIR}/tools/ruling-planets.ts" \
   "${SKILL_DIR}/tools/add-person.ts" \
