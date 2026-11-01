@@ -83,12 +83,13 @@ Parashari has no RP test. Rectify through event architecture instead
    marriage, relocation, major finance. With fewer than three usable dates,
    skip rectification, state `birth time unverified`, and lower confidence.
 2. For each candidate moment, run
-   `bash "<skill-dir>/scripts/add-person.sh" --name "<name> rectification" ...`
-   with the trial moment, then check that the event house group, the dasha at
+   `bash "<skill-dir>/scripts/add-person.sh" --name "<name> rectification <offset>" ...`
+   with the trial moment (each trial needs its own name, for example `Ada
+   rectification +5`), then check that the event house group, the dasha at
    that date, and the transit all fit (*Dasha event threshold*).
 3. Keep the moment that fits the most events coherently, report `birth time
    verified` or `suspect with provisional moment X`, then delete
-   `persons/<name> rectification/`.
+   every `persons/<name> rectification */` record.
 
 Never refresh `persons/<name>/` at a trial moment: its birth header stays
 immutable.
@@ -135,8 +136,16 @@ transit:
 
 ```bash
 bash "<skill-dir>/scripts/check-transit.sh" --name "<person>" \
-  --moment "<ISO-8601>" --planet <graha> --school parashari
+  --moment "<ISO-8601>" --planet <graha> --school parashari --summary
 ```
+
+`--summary` leaves out the chart attached to each event, keeping the dates and
+signs; drop it only when you need the chart at the event moment.
+
+To see a lord enter a house of the group, search its crossing into that natal
+house: add `--kinds cusp-crossing --house <h>`, one house per run. Each event
+reports `house` and `moment`. Slow planets may need `--max-years`. To cover
+several lords and houses, loop them in a script (`instructions/scripting.md`).
 
 To check several lords or dates in one run, follow `instructions/scripting.md`.
 

@@ -131,6 +131,7 @@ export const checkTransit = Effect.fn("Ascendant.checkTransitTool")(function* (
     ...(input.house !== undefined ? { house: input.house } : {}),
     ...(input.maxYears !== undefined ? { maxYears: input.maxYears } : {}),
     ...(input.precisionMinutes !== undefined ? { precisionMinutes: input.precisionMinutes } : {}),
+    ...(input.summary !== undefined ? { summary: input.summary } : {}),
   }).pipe(
     Effect.mapError((error) =>
       domainError(error, input.name, {

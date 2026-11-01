@@ -113,6 +113,9 @@ const transit = Command.make(
       Flag.withDescription("Refinement precision in minutes (default 1)"),
       Flag.optional,
     ),
+    summary: Flag.Boolean("summary").pipe(
+      Flag.withDescription("Leave out the chart attached to each event (default false)"),
+    ),
   },
   (flags) =>
     emit(
@@ -127,6 +130,11 @@ const transit = Command.make(
       command:
         'ascendant transit --name "Ada" --moment "2026-08-27T22:00:00+05:30" --planet Jupiter',
       description: "Next Jupiter sign ingress",
+    },
+    {
+      command:
+        'ascendant transit --name "Ada" --moment "2026-08-27T22:00:00+05:30" --planet Jupiter --summary',
+      description: "Same search without the chart attached to each event",
     },
     {
       command:

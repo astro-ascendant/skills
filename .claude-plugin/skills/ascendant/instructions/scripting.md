@@ -21,7 +21,7 @@ Import from `../../.ascendant-agent/tools/api.ts`. Every function takes the same
 | Function | Input fields | Result |
 |---|---|---|
 | `addPerson` | `name`, `moment`, `latitude`, `longitude`, `sex?` | Same as `add-person.sh` |
-| `checkTransit` | `name`, `moment`, `planet`, `school?`, `direction?`, `kinds?` (array), `count?`, `targetLongitude?`, `house?`, `maxYears?`, `precisionMinutes?` | Same as `check-transit.sh` |
+| `checkTransit` | `name`, `moment`, `planet`, `school?`, `direction?`, `kinds?` (array), `count?`, `targetLongitude?`, `house?`, `maxYears?`, `precisionMinutes?`, `summary?` | Same as `check-transit.sh` |
 | `rulingPlanets` | `moment`, `name?`, `latitude?`, `longitude?` | Same as `ruling-planets.sh` |
 | `home` | none | Saved people |
 | `main(program)` | an `Effect` | Prints its result and exits with its failure code |
@@ -48,8 +48,38 @@ main(
         planet,
         school: "kp",
         count: 1,
+        summary: true,
       }),
     { concurrency: 3 },
+  ),
+);
+```
+
+Next entry of each shortlisted lord into each house of the group (here the 10th and 6th), using the natal cusps:
+
+```ts
+import { Effect } from "effect";
+import { checkTransit, main } from "../../.ascendant-agent/tools/api.ts";
+
+const lords = ["Jupiter", "Saturn"] as const;
+const houses = [10, 6] as const;
+
+main(
+  Effect.forEach(
+    lords.flatMap((planet) => houses.map((house) => ({ planet, house }))),
+    ({ planet, house }) =>
+      checkTransit({
+        name: "Ada",
+        moment: "2026-11-01T12:00:00+05:30",
+        planet,
+        house,
+        kinds: ["cusp-crossing"],
+        school: "kp",
+        count: 1,
+        maxYears: 40,
+        summary: true,
+      }),
+    { concurrency: 4 },
   ),
 );
 ```
@@ -57,6 +87,6 @@ main(
 ## Rules
 
 - Use only the API above, `effect`, and the standard `Effect` helpers (`forEach`, `all`, `gen`, `map`, `filter`).
-- Write only under `persons/` through `addPerson`, and under `./.ascendant/scripts/`. Trial moments go to a `<name> rectification` record, as in the school file.
+- Write only under `persons/` through `addPerson`, and under `./.ascendant/scripts/`. Trial moments go to `<name> rectification <offset>` records, as in the school file.
 - Make no network calls and read no files outside `persons/` and `references/`.
 - Cite the printed output exactly as for the shell scripts.

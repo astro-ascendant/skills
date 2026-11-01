@@ -73,6 +73,13 @@ export const CheckTransitInput = Schema.Struct({
       Schema.annotate({ description: "Refinement precision in minutes (default 1)" }),
     ),
   ),
+  summary: Schema.optional(
+    Schema.Boolean.pipe(
+      Schema.annotate({
+        description: "Leave out the chart attached to each event (default false)",
+      }),
+    ),
+  ),
 });
 export type CheckTransitInput = typeof CheckTransitInput.Type;
 

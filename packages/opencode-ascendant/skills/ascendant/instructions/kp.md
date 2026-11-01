@@ -49,11 +49,12 @@ mapped group's houses and lords do (narrow).
 Translate the question into guidebook terms: matter, houses, owners, cusps,
 significators. Open `{guidebook-root}/kp/house-grouping.md`, find the event row,
 and record the primary house, the supporting houses, and the detrimental
-houses (the 12th from each house of the group). Then fit that group to the
-Step 1 survey.
+houses (the 12th from each house of the group). When no row names the event,
+take the closest rows as a stand-in, name them, say so, and lower confidence;
+never invent houses. Then fit that group to the Step 1 survey.
 
-- Narrow question (one matter: marriage, job change): proceed with the mapped
-  house group, extending the survey to its houses and lords.
+- Narrow question (one matter): proceed with the mapped house group, extending
+  the survey to its houses and lords.
 - Broad question (`How is next year`, `tell me about my life`): cover the
   mapped group plus every house the survey marks active, meaning houses tied to
   the running and next dasha lords and houses marked weak or afflicted. Never
@@ -67,31 +68,44 @@ houses for a broad question.
 Cusps and sub-lords move fast, so verify the moment before judging. Read
 `{guidebook-root}/kp/birth-time-rectification.md`, then run the RP test:
 
-1. Get judgment-moment ruling planets:
+1. Get the ruling planets at the judgment moment: the moment you take up the
+   rectification, which is now, written with the birth place's UTC offset
+   (read it from `persons/<name>/input.md`):
    `bash "<skill-dir>/scripts/ruling-planets.sh" --moment "<ISO-8601>" --name "<person>"`.
    Use `--latitude` and `--longitude` instead when the judgment place is not
    the birth place. Step 5 reuses this output, so run it once.
-2. Read the natal Ascendant sign, star, and sub lord from `Cusp Lords` house 1
-   in `persons/<name>/kp/D1.md`. Judgment RPs should appear among them. Count
-   Rahu or Ketu through its agent; drop an RP placed in the star or sub of a
-   retrograde planet.
-3. Tie order: Ascendant star, Ascendant sign, Moon star, Moon sign, day lord
-   (UTC weekday; near sunrise treat a lone day-lord miss as weak).
-4. Match: state `birth time verified` and proceed.
+2. Read the natal Ascendant sign lord, star lord, and sub lord from `Cusp Lords`
+   house 1 in `persons/<name>/kp/D1.md`. A judgment RP is a hit when it equals
+   any one of these three lords. Count Rahu or Ketu through its agent; drop an
+   RP placed in the star or sub of a retrograde planet.
+3. Strength order, strongest first: Ascendant star lord, Ascendant sign lord,
+   Moon star lord, Moon sign lord, day lord (UTC weekday; near sunrise treat a
+   lone day-lord miss as weak). Use it only to choose which RPs to keep when you
+   need fewer than five; it is not a tie-break between trial moments.
+4. Match: every distinct RP is one of the three Ascendant lords (the guidebook's
+   "should be among"). State `birth time verified` and proceed. Otherwise there
+   is no match; the hit count is the number of distinct RPs that are one of the
+   three lords.
 
 No match: the moment is suspect. On a writable host, test trial moments at
-+/-5, +/-10, and +/-15 minutes and keep the one with the most RP hits. Trials
-go into a rectification scratch record, never into the saved record:
++/-5, +/-10, and +/-15 minutes. Trials go into rectification scratch records,
+never into the saved record. A record holds one set of birth data, so give
+each trial its own name, `<name> rectification <offset>` (for example
+`<name> rectification +5`):
 
 ```bash
 bash "<skill-dir>/scripts/add-person.sh" \
-  --name "<name> rectification" \
+  --name "<name> rectification <offset>" \
   --moment "<trial ISO-8601>" \
   --latitude <latitude> --longitude <longitude>
 ```
 
-Compare the RP hits, report `suspect, provisional moment X` with lower
-confidence, then delete `persons/<name> rectification/`. Never refresh
+Each add-person result carries `kpAscendant` (the trial's Ascendant sign,
+star, and sub lords), so count the hits from it without opening files. Keep the
+trial with strictly the most hits and report `suspect, provisional moment X`
+with lower confidence. When two or more trials tie for the most hits, choose
+none: report `suspect, recorded moment kept` with lower confidence. Then
+delete every `persons/<name> rectification */` record. Never refresh
 `persons/<name>/` at a trial moment: its birth header stays immutable. Methods
 under *Birth Time Rectification* in
 `{guidebook-root}/kp/recent-researches.md` are cross-checks only, never
@@ -138,10 +152,17 @@ strongest first. Then refine with transit:
 
 ```bash
 bash "<skill-dir>/scripts/check-transit.sh" --name "<person>" \
-  --moment "<ISO-8601>" --planet <graha> --school kp
+  --moment "<ISO-8601>" --planet <graha> --school kp --summary
 ```
 
-To check several lords or dates in one run, follow `instructions/scripting.md`.
+`--summary` leaves out the chart attached to each event, keeping the dates and
+signs; drop it only when you need the chart at the event moment.
+
+To see a lord enter a house of the group, search its crossing of that house's
+natal cusp: add `--kinds cusp-crossing --house <h>`, one house per run. Each
+event reports `house` and `moment`. Slow planets may need `--max-years`. To
+check several lords, houses, or dates in one run, follow
+`instructions/scripting.md`.
 
 Dasha, bhukti, and antara lords should transit significators of the group
 houses. Sun transit gives within-a-year precision, Moon within-a-month. Done

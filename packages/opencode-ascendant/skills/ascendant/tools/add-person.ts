@@ -41,6 +41,15 @@ export interface PersonAddition {
     readonly dashas: number;
     readonly jaimini: number;
   };
+  /** House 1 cusp of the KP D1: the lords the ruling-planet test compares. */
+  readonly kpAscendant: {
+    readonly sign: string;
+    readonly longitude: number;
+    readonly signLord: string;
+    readonly starLord: string;
+    readonly subLord: string;
+    readonly subSubLord: string;
+  };
 }
 
 function formatMemory(storedPerson: StoredPerson): string {
@@ -546,6 +555,10 @@ export const addPerson = Effect.fn("Ascendant.addPerson")(function* (storedPerso
   const d1 = vedicCalculation.charts[0];
   const kpD1 = kpCalculation.charts[0];
   const lagnaSign = d1.houses[1].sign;
+  const kpCusp1 = kpCuspAndPlanetLords(kpD1).cuspLords.find((cusp) => cusp.house === 1);
+  if (kpCusp1 === undefined) {
+    return yield* Effect.die(new Error("KP chart generation returned no house 1 cusp"));
+  }
   const [charaKarakas, rashiDrishti, karakamsha, arudhaPadas, upapada, argala] = yield* Effect.all(
     [
       CharaKarakas.calculate(placements),
@@ -634,6 +647,14 @@ export const addPerson = Effect.fn("Ascendant.addPerson")(function* (storedPerso
       kpCharts: kpCalculation.charts.length,
       dashas: dasha.length,
       jaimini: 6,
+    },
+    kpAscendant: {
+      sign: kpCusp1.sign,
+      longitude: kpCusp1.longitude,
+      signLord: kpCusp1.signLord,
+      starLord: kpCusp1.starLord,
+      subLord: kpCusp1.subLord,
+      subSubLord: kpCusp1.subSubLord,
     },
   } satisfies PersonAddition;
 });

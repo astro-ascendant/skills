@@ -25,7 +25,7 @@ Done when `./references/kp/` and `./references/parashari/` exist. The `rm` makes
 
 ## Method preference
 
-Ask both questions in one message: on the first setup, and again whenever the
+Skip this section when the request already names a school or you cannot ask the user: write nothing, and the school resolves from the request. Otherwise ask both questions in one message: on the first setup, and again whenever the
 user wants to change their default.
 
 1. `Default method: Parashari, KP, or none (ask me each time)?`
