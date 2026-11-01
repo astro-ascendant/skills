@@ -52,6 +52,9 @@ merged into one judgment.
    stop, list candidates if known, and ask for a path in plain words without
    naming a host tool.
 3. **Guidebook root** is `./references`, else `<skill-dir>/references`.
+4. **Batch work**: when one step needs three or more tool calls, or a loop or
+   filter over their results, follow `<skill-dir>/instructions/scripting.md`
+   instead of repeating shell calls.
 
 ## Glossary
 

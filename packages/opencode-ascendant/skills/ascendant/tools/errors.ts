@@ -14,3 +14,9 @@ export class CommandError extends Schema.TaggedError<CommandError>()("CommandErr
     return this.code === "VALIDATION_ERROR" ? 2 : 1;
   }
 }
+
+/** The TOON-ready report printed for any failure. */
+export const failureReport = (error: unknown) =>
+  error instanceof CommandError
+    ? { error: error.message, code: error.code, help: error.suggestions }
+    : { error: String(error), code: "UNKNOWN", help: [] as ReadonlyArray<string> };

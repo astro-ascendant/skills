@@ -138,6 +138,8 @@ bash "<skill-dir>/scripts/check-transit.sh" --name "<person>" \
   --moment "<ISO-8601>" --planet <graha> --school parashari
 ```
 
+To check several lords or dates in one run, follow `instructions/scripting.md`.
+
 Saturn sets duration (*Saturn defines duration*), Jupiter expands what is
 already active (*Jupiter expands what is activated*), and transit alone is an
 opportunity, never proof (*Transits as triggers*). Qualify the transit with

@@ -1,11 +1,17 @@
 import { encode } from "@toon-format/toon";
-import { Console, Effect, Option, Schema } from "effect";
+import { Console, Effect, Option } from "effect";
 import { Command, Flag } from "effect/cli";
 
-import { CommandError } from "./errors.ts";
 import { PlatformLayer } from "./common.ts";
+import { failureReport } from "./errors.ts";
 import { AddPerson, CheckTransit, handlers, RulingPlanets } from "./toolkit.ts";
-import { ADD_PERSON_HELP, home, RULING_PLANETS_HELP, TRANSIT_HELP } from "./workflows.ts";
+import {
+  ADD_PERSON_HELP,
+  decodeInput,
+  home,
+  RULING_PLANETS_HELP,
+  TRANSIT_HELP,
+} from "./workflows.ts";
 import { VERSION } from "./version.ts";
 
 type Raw = Record<string, unknown>;
@@ -18,27 +24,10 @@ const compact = (fields: Raw): Raw =>
     ),
   );
 
-/** Decodes flags with the same schema the plugin uses for the tool. */
-const decode = <A, I>(schema: Schema.Codec<A, I>, raw: Raw, help: string) =>
-  Schema.decodeUnknownEffect(schema)(raw).pipe(
-    Effect.mapError(
-      (error) =>
-        new CommandError({ message: error.message, code: "VALIDATION_ERROR", suggestions: [help] }),
-    ),
-  );
-
 /** Prints a result as TOON, or a failure as TOON on stdout, then fails with it. */
 const emit = <E>(effect: Effect.Effect<Raw, E>) =>
   effect.pipe(
-    Effect.tapError((error) =>
-      Console.log(
-        encode(
-          error instanceof CommandError
-            ? { error: error.message, code: error.code, help: error.suggestions }
-            : { error: String(error), code: "UNKNOWN", help: [] },
-        ),
-      ),
-    ),
+    Effect.tapError((error) => Console.log(encode(failureReport(error)))),
     Effect.flatMap((output) => Console.log(encode(output))),
   );
 
@@ -62,7 +51,7 @@ const addPerson = Command.make(
   },
   (flags) =>
     emit(
-      decode(AddPerson.parametersSchema, compact(flags), ADD_PERSON_HELP).pipe(
+      decodeInput(AddPerson.parametersSchema, compact(flags), ADD_PERSON_HELP).pipe(
         Effect.flatMap(handlers.ascendant_add_person),
       ),
     ),
@@ -127,7 +116,7 @@ const transit = Command.make(
   },
   (flags) =>
     emit(
-      decode(CheckTransit.parametersSchema, compact(flags), TRANSIT_HELP).pipe(
+      decodeInput(CheckTransit.parametersSchema, compact(flags), TRANSIT_HELP).pipe(
         Effect.flatMap(handlers.ascendant_check_transit),
       ),
     ),
@@ -160,7 +149,7 @@ const rulingPlanets = Command.make(
   },
   (flags) =>
     emit(
-      decode(RulingPlanets.parametersSchema, compact(flags), RULING_PLANETS_HELP).pipe(
+      decodeInput(RulingPlanets.parametersSchema, compact(flags), RULING_PLANETS_HELP).pipe(
         Effect.flatMap(handlers.ascendant_ruling_planets),
       ),
     ),

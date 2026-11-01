@@ -141,6 +141,8 @@ bash "<skill-dir>/scripts/check-transit.sh" --name "<person>" \
   --moment "<ISO-8601>" --planet <graha> --school kp
 ```
 
+To check several lords or dates in one run, follow `instructions/scripting.md`.
+
 Dasha, bhukti, and antara lords should transit significators of the group
 houses. Sun transit gives within-a-year precision, Moon within-a-month. Done
 when the DBAS lords and the transit check are cited, or the absence of a

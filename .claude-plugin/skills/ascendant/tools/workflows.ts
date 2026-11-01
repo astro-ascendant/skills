@@ -1,5 +1,5 @@
 import { Swisseph, Transit } from "astro-ascendant";
-import { Effect, FileSystem, Layer, Match, Path } from "effect";
+import { Effect, FileSystem, Layer, Match, Path, Schema } from "effect";
 
 import { addPersonFromInput } from "./add-person.ts";
 import { searchTransits } from "./check-transit.ts";
@@ -79,6 +79,15 @@ const domainError = (error: unknown, name: string, fallback: Fallback): CommandE
           code: fallback.code,
           suggestions: [fallback.help],
         }),
+    ),
+  );
+
+/** Decodes plain input with a tool's schema; failures are validation errors. */
+export const decodeInput = <A, I>(schema: Schema.Codec<A, I>, raw: unknown, help: string) =>
+  Schema.decodeUnknownEffect(schema)(raw).pipe(
+    Effect.mapError(
+      (error) =>
+        new CommandError({ message: error.message, code: "VALIDATION_ERROR", suggestions: [help] }),
     ),
   );
 
