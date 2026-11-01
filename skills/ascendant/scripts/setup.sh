@@ -14,11 +14,11 @@ required_packages=(
 )
 
 package_specs=(
-  "@effect/platform-bun@4.0.5"
+  "@effect/platform-bun@4.1.1"
   "@swisseph/node@1.4.0"
   "@toon-format/toon@4.4.0"
-  "astro-ascendant@5.1.1"
-  "effect@4.0.5"
+  "astro-ascendant@6.1.0"
+  "effect@4.1.1"
 )
 
 cd "${WORKING_DIRECTORY}"

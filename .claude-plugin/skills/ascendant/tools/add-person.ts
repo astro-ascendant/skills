@@ -41,6 +41,15 @@ export interface PersonAddition {
     readonly dashas: number;
     readonly jaimini: number;
   };
+  /** House 1 cusp of the KP D1: the lords the ruling-planet test compares. */
+  readonly kpAscendant: {
+    readonly sign: string;
+    readonly longitude: number;
+    readonly signLord: string;
+    readonly starLord: string;
+    readonly subLord: string;
+    readonly subSubLord: string;
+  };
 }
 
 function formatMemory(storedPerson: StoredPerson): string {
@@ -143,7 +152,7 @@ function houseTable(chart: Chart.Chart): string {
   );
 }
 
-function planetSignificationTable(chart: Chart.Chart): string {
+function planetSignificationTable(chart: Chart.D1Chart): string {
   if (chart.planetSignifications === undefined) return "";
   const rows = Object.entries(chart.planetSignifications).map(([planet, signification]) => [
     planet,
@@ -155,7 +164,7 @@ function planetSignificationTable(chart: Chart.Chart): string {
   return markdownTable(["Planet", "Level 1", "Level 2", "Level 3", "Level 4"], rows);
 }
 
-function houseSignificatorTable(chart: Chart.Chart): string {
+function houseSignificatorTable(chart: Chart.D1Chart): string {
   if (chart.houseSignificators === undefined) return "";
   const rows = Object.entries(chart.houseSignificators).map(([house, significators]) => [
     Number(house),
@@ -167,7 +176,7 @@ function houseSignificatorTable(chart: Chart.Chart): string {
   return markdownTable(["House", "Level 1", "Level 2", "Level 3", "Level 4"], rows);
 }
 
-function rulingPlanetsTable(chart: Chart.Chart): string {
+function rulingPlanetsTable(chart: Chart.D1Chart): string {
   return markdownTable(
     ["Rank", "Planet"],
     (chart.rulingPlanets ?? []).map((planet, index) => [index + 1, planet]),
@@ -306,7 +315,7 @@ function formatSavMarkdown(result: Effect.Success<ReturnType<typeof SAV.calculat
 
 function formatKpD1Markdown(
   calculation: ReturnType<typeof calculationContext>,
-  chart: Chart.Chart,
+  chart: Chart.D1Chart,
 ): string {
   const kpLords = kpCuspAndPlanetLords(chart);
   const sections = [
@@ -546,6 +555,10 @@ export const addPerson = Effect.fn("Ascendant.addPerson")(function* (storedPerso
   const d1 = vedicCalculation.charts[0];
   const kpD1 = kpCalculation.charts[0];
   const lagnaSign = d1.houses[1].sign;
+  const kpCusp1 = kpCuspAndPlanetLords(kpD1).cuspLords.find((cusp) => cusp.house === 1);
+  if (kpCusp1 === undefined) {
+    return yield* Effect.die(new Error("KP chart generation returned no house 1 cusp"));
+  }
   const [charaKarakas, rashiDrishti, karakamsha, arudhaPadas, upapada, argala] = yield* Effect.all(
     [
       CharaKarakas.calculate(placements),
@@ -634,6 +647,14 @@ export const addPerson = Effect.fn("Ascendant.addPerson")(function* (storedPerso
       kpCharts: kpCalculation.charts.length,
       dashas: dasha.length,
       jaimini: 6,
+    },
+    kpAscendant: {
+      sign: kpCusp1.sign,
+      longitude: kpCusp1.longitude,
+      signLord: kpCusp1.signLord,
+      starLord: kpCusp1.starLord,
+      subLord: kpCusp1.subLord,
+      subSubLord: kpCusp1.subSubLord,
     },
   } satisfies PersonAddition;
 });

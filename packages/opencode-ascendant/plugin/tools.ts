@@ -1,18 +1,15 @@
 import type { Plugin } from "@opencode/plugin/effect";
 import { encode } from "@toon-format/toon";
-import { Swisseph } from "astro-ascendant";
-import { Effect, Layer } from "effect";
+import { Effect } from "effect";
 
-import { addPersonWorkflow, transitWorkflow } from "../skills/ascendant/tools/cli.ts";
+import { toolSpecs } from "../skills/ascendant/tools/tool-specs.ts";
 import {
-  AppLayer,
-  KpAstroParamsLayer,
-  PlatformLayer,
-} from "../skills/ascendant/tools/common.ts";
-import { addPersonArgs, transitArgs } from "./arguments.ts";
+  addPerson,
+  checkTransit,
+  rulingPlanets,
+} from "../skills/ascendant/tools/workflows.ts";
 import { makeDirectoryRunner } from "./directory.ts";
 import { toToolError } from "./errors.ts";
-import { CheckTransitInput, AddPersonInput } from "./inputs.ts";
 
 const TOOL_TIMEOUT_MS = 60_000;
 
@@ -20,35 +17,31 @@ export const registerTools = Effect.fn("Ascendant.registerTools")(function* (
   ctx: Plugin.Context,
   runInDirectory: ReturnType<typeof makeDirectoryRunner>,
 ) {
+  const run = <A extends Record<string, unknown>, E>(effect: Effect.Effect<A, E>) =>
+    runInDirectory(effect).pipe(
+      Effect.map((output) => ({ content: encode(output) })),
+      Effect.timeout(TOOL_TIMEOUT_MS),
+      Effect.mapError(toToolError),
+    );
+
   yield* ctx.tool.transform((editor) => {
     editor.add({
-      name: "ascendant_add_person",
-      description: "Create or refresh one saved astrology record from exact birth data.",
-      input: AddPersonInput,
-      execute: (args) =>
-        runInDirectory(
-          addPersonWorkflow(addPersonArgs(args)).pipe(
-            Effect.provide(AppLayer),
-            Effect.map((output) => ({ content: encode(output) })),
-          ),
-        ).pipe(Effect.timeout(TOOL_TIMEOUT_MS), Effect.mapError(toToolError)),
+      name: toolSpecs.addPerson.name,
+      description: toolSpecs.addPerson.description,
+      input: toolSpecs.addPerson.parameters,
+      execute: (args) => run(addPerson(args)),
     });
     editor.add({
-      name: "ascendant_check_transit",
-      description: "Search transit events for one saved person and moment.",
-      input: CheckTransitInput,
-      execute: (args) => {
-        const layer =
-          args.school === "kp"
-            ? Layer.mergeAll(PlatformLayer, KpAstroParamsLayer, Swisseph.SwissephLayer)
-            : AppLayer;
-        return runInDirectory(
-          transitWorkflow(transitArgs(args)).pipe(
-            Effect.provide(layer),
-            Effect.map((output) => ({ content: encode(output) })),
-          ),
-        ).pipe(Effect.timeout(TOOL_TIMEOUT_MS), Effect.mapError(toToolError));
-      },
+      name: toolSpecs.checkTransit.name,
+      description: toolSpecs.checkTransit.description,
+      input: toolSpecs.checkTransit.parameters,
+      execute: (args) => run(checkTransit(args)),
+    });
+    editor.add({
+      name: toolSpecs.rulingPlanets.name,
+      description: toolSpecs.rulingPlanets.description,
+      input: toolSpecs.rulingPlanets.parameters,
+      execute: (args) => run(rulingPlanets(args)),
     });
   });
 });

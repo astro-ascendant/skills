@@ -34,7 +34,7 @@ school's reading. The config is per working directory, holds only
 
 | Branch | When | Then |
 |---|---|---|
-| `setup` | Writable host, and a package needed by `add` or by a script is missing, or `.ascendant/config.txt` is absent | Follow `instructions/setup.md`, then return to this table |
+| `setup` | Writable host, and a package needed by `add` or by a script is missing, or `.ascendant/config.txt` is absent and the request names no school | Follow `instructions/setup.md`, then return to this table |
 | `add` | Writable host, and the birth data in the message has no current person record (missing, or the stored birth data differs) | Create or refresh the person record, then continue as `analysis` in the same turn |
 | `analysis` | A life question with person evidence | Read one school file under `## Readings` and follow it end to end |
 | `ask` | None of the above: no question and no evidence, several records match and none is named, or no school can be resolved and the user has not answered | Ask one plain question; never guess |
@@ -52,6 +52,9 @@ merged into one judgment.
    stop, list candidates if known, and ask for a path in plain words without
    naming a host tool.
 3. **Guidebook root** is `./references`, else `<skill-dir>/references`.
+4. **Batch work**: when one step needs three or more tool calls, or a loop or
+   filter over their results, follow `<skill-dir>/instructions/scripting.md`
+   instead of repeating shell calls.
 
 ## Glossary
 
