@@ -1,5 +1,11 @@
 # opencode-ascendant
 
+## 2.2.0
+
+### Minor Changes
+
+- Tools are now defined once as typed Effect workflows and an `effect/ai` Toolkit; the CLI is rebuilt on `effect/cli` and the plugin no longer round-trips through argv. Adds a Code Mode API so an agent can run one Effect script instead of many shell calls (`scripts/run-script.sh`, `instructions/scripting.md`), a third plugin tool `ascendant_ruling_planets`, `add-person` output `kpAscendant`, and `transit --summary`. `--kinds cusp-crossing --house` now searches the saved person's natal cusps instead of the cusps at the search start. Clearer KP birth-time rules (judgment moment, hit counting, strength order, trial records), a repaired sub-lord table, and a cited house-grouping table. Updates astro-ascendant to 6.1.0 and effect to 4.1.1. CLI `--help` and parse errors now use the `effect/cli` format, an unknown command exits 1, and `--version` prints `ascendant v<version>`.
+
 ## 2.1.3
 
 ### Patch Changes
