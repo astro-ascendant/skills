@@ -131,8 +131,12 @@ file used. Done when the ranked shortlist is named with its citations.
 Start from the event, not from the running planet (*Dasha analysis starts from
 the event*). Map mahadasha, antardasha, and pratyantardasha to the group houses
 (*The dasha chain*) and require all three to touch the event set (*Dasha event
-threshold*). Read `persons/<name>/dasha.md` for period dates. Refine with
-transit:
+threshold*). Read `persons/<name>/dasha.md` for mahadasha and antardasha
+dates. For pratyantardasha dates, search `persons/<name>/pratyantardasha.md`
+for the `## <Mahadasha> / <Antardasha> Pratyantardashas` heading; for the
+fourth level, search `persons/<name>/sookshma.md` for
+`## <Mahadasha> / <Antardasha> / <Pratyantardasha> Sookshmas`. Both files are
+long; read only the matching section. Refine with transit:
 
 ```bash
 bash "<skill-dir>/scripts/check-transit.sh" --name "<person>" \

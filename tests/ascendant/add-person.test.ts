@@ -80,6 +80,21 @@ describe("addPerson chart schools", () => {
       expect(kpDasha).toContain("| KP | KrishnamurtiVP291 | Placidus | Vimshottari |");
       expect(kpDasha).toContain("| Mahadasha | Start | End |");
 
+      for (const [directory, school] of [
+        [personDirectory, "| Parashari | Lahiri | WholeSign | Vimshottari |"],
+        [join(personDirectory, "kp"), "| KP | KrishnamurtiVP291 | Placidus | Vimshottari |"],
+      ] as const) {
+        const pratyantar = await readFile(join(directory, "pratyantardasha.md"), "utf8");
+        const sookshma = await readFile(join(directory, "sookshma.md"), "utf8");
+        expect(pratyantar).toContain(school);
+        expect(sookshma).toContain(school);
+        // 9 mahadashas x 9 antardashas, then x 9 pratyantardashas.
+        expect(pratyantar.match(/^## .+ Pratyantardashas \(/gm)?.length).toBe(81);
+        expect(sookshma.match(/^## .+ Sookshmas \(/gm)?.length).toBe(729);
+        expect(pratyantar).toContain("| Pratyantardasha | Start | End |");
+        expect(sookshma).toContain("| Sookshma | Start | End |");
+      }
+
       const input = await readFile(join(personDirectory, "input.md"), "utf8");
       const sav = await readFile(join(personDirectory, "sav.md"), "utf8");
       const charaKarakas = await readFile(

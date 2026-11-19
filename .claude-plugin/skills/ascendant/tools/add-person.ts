@@ -200,10 +200,16 @@ function formatChartMarkdown(
   ].join("\n");
 }
 
+type VimshottariTimeline = Effect.Success<ReturnType<typeof Dasha.calculate>>;
+
+function periodSpan(period: { readonly start: DateTime.Utc; readonly end: DateTime.Utc }): string {
+  return `${DateTime.formatIso(period.start)} to ${DateTime.formatIso(period.end)}`;
+}
+
 function formatDashaMarkdown(
   title: string,
   calculation: ReturnType<typeof calculationContext>,
-  dashas: Effect.Success<ReturnType<typeof Dasha.calculate>>,
+  dashas: VimshottariTimeline,
 ): string {
   const sections = [
     `# ${title}`,
@@ -224,7 +230,7 @@ function formatDashaMarkdown(
   for (const period of dashas) {
     sections.push(
       "",
-      `## ${period.mahadasha} Mahadasha Antardashas (${DateTime.formatIso(period.start)} to ${DateTime.formatIso(period.end)})`,
+      `## ${period.mahadasha} Mahadasha Antardashas (${periodSpan(period)})`,
       "",
       markdownTable(
         ["Antardasha", "Start", "End"],
@@ -235,6 +241,60 @@ function formatDashaMarkdown(
         ]),
       ),
     );
+  }
+  sections.push("");
+  return sections.join("\n");
+}
+
+/** Third Vimshottari level (Antara in KP usage): one section per Antardasha. */
+function formatPratyantardashaMarkdown(
+  title: string,
+  calculation: ReturnType<typeof calculationContext>,
+  dashas: VimshottariTimeline,
+): string {
+  const sections = [`# ${title}`, "", calculationTable(calculation)];
+  for (const antardasha of dashas.flatMap((period) => period.antardashas)) {
+    sections.push(
+      "",
+      `## ${antardasha.mahadasha} / ${antardasha.antardasha} Pratyantardashas (${periodSpan(antardasha)})`,
+      "",
+      markdownTable(
+        ["Pratyantardasha", "Start", "End"],
+        Dasha.pratyantardashas(antardasha).map((pratyantardasha) => [
+          pratyantardasha.pratyantardasha,
+          DateTime.formatIso(pratyantardasha.start),
+          DateTime.formatIso(pratyantardasha.end),
+        ]),
+      ),
+    );
+  }
+  sections.push("");
+  return sections.join("\n");
+}
+
+/** Fourth Vimshottari level: one section per Pratyantardasha. */
+function formatSookshmaMarkdown(
+  title: string,
+  calculation: ReturnType<typeof calculationContext>,
+  dashas: VimshottariTimeline,
+): string {
+  const sections = [`# ${title}`, "", calculationTable(calculation)];
+  for (const antardasha of dashas.flatMap((period) => period.antardashas)) {
+    for (const pratyantardasha of Dasha.pratyantardashas(antardasha)) {
+      sections.push(
+        "",
+        `## ${pratyantardasha.mahadasha} / ${pratyantardasha.antardasha} / ${pratyantardasha.pratyantardasha} Sookshmas (${periodSpan(pratyantardasha)})`,
+        "",
+        markdownTable(
+          ["Sookshma", "Start", "End"],
+          Dasha.sookshmas(pratyantardasha).map((sookshma) => [
+            sookshma.sookshma,
+            DateTime.formatIso(sookshma.start),
+            DateTime.formatIso(sookshma.end),
+          ]),
+        ),
+      );
+    }
   }
   sections.push("");
   return sections.join("\n");
@@ -608,11 +668,27 @@ export const addPerson = Effect.fn("Ascendant.addPerson")(function* (storedPerso
         path.join(personDirectory, "dasha.md"),
         formatDashaMarkdown("Vimshottari Dasha", vedicContext, dasha),
       ),
+      writeMarkdown(
+        path.join(personDirectory, "pratyantardasha.md"),
+        formatPratyantardashaMarkdown("Vimshottari Pratyantardasha", vedicContext, dasha),
+      ),
+      writeMarkdown(
+        path.join(personDirectory, "sookshma.md"),
+        formatSookshmaMarkdown("Vimshottari Sookshma Dasha", vedicContext, dasha),
+      ),
       writeMarkdown(path.join(personDirectory, "sav.md"), formatSavMarkdown(sav)),
       writeMarkdown(path.join(kpDirectory, "D1.md"), formatKpD1Markdown(kpContext, kpD1)),
       writeMarkdown(
         path.join(kpDirectory, "dasha.md"),
         formatDashaMarkdown("KP Vimshottari Dasha", kpContext, kpDasha),
+      ),
+      writeMarkdown(
+        path.join(kpDirectory, "pratyantardasha.md"),
+        formatPratyantardashaMarkdown("KP Vimshottari Antara", kpContext, kpDasha),
+      ),
+      writeMarkdown(
+        path.join(kpDirectory, "sookshma.md"),
+        formatSookshmaMarkdown("KP Vimshottari Sookshma Dasha", kpContext, kpDasha),
       ),
       writeMarkdown(
         path.join(jaiminiDirectory, "chara-karakas.md"),

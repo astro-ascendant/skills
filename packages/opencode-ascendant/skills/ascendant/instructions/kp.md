@@ -148,7 +148,11 @@ Done when the shortlist is named with its citations.
 The matter fructifies in the conjoined dasha, bhukti, and antara of house-group
 significators. Apply *Timing Events*, read `persons/<name>/kp/dasha.md`, and
 pick one dasha, one bhukti, and one antara lord from the Step 5 shortlist,
-strongest first. Then refine with transit:
+strongest first. For antara dates, search `persons/<name>/kp/pratyantardasha.md`
+for the `## <Dasha> / <Bhukti> Pratyantardashas` heading; for sookshma dates,
+search `persons/<name>/kp/sookshma.md` for
+`## <Dasha> / <Bhukti> / <Antara> Sookshmas`. Both files are long; read only
+the matching section. Then refine with transit:
 
 ```bash
 bash "<skill-dir>/scripts/check-transit.sh" --name "<person>" \

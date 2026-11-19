@@ -64,4 +64,4 @@ bash "<skill-dir>/scripts/add-person.sh" \
   --sex Female
 ```
 
-Done when stdout reports `created` or `refreshed` for `persons/<name>/` and that directory contains `input.md`, `MEMORY.md`, `charts/`, `dasha.md`, `kp/`, `sav.md`, and `jaimini/`. Identical birth data refreshes; different birth data needs another name.
+Done when stdout reports `created` or `refreshed` for `persons/<name>/` and that directory contains `input.md`, `MEMORY.md`, `charts/`, `dasha.md`, `pratyantardasha.md`, `sookshma.md`, `kp/`, `sav.md`, and `jaimini/`. Identical birth data refreshes; different birth data needs another name.
