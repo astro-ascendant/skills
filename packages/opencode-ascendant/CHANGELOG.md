@@ -1,5 +1,11 @@
 # opencode-ascendant
 
+## 2.3.0
+
+### Minor Changes
+
+- Bump astro-ascendant to 6.2.0. add-person now saves the third and fourth Vimshottari levels as `pratyantardasha.md` (antara in KP) and `sookshma.md`, beside `dasha.md` for both the Parashari and KP timelines.
+
 ## 2.2.0
 
 ### Minor Changes
