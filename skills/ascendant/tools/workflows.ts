@@ -8,6 +8,7 @@ import {
   KpAstroParamsLayer,
   PersonRecordConflict,
   PersonRecordNotFound,
+  personsDirectory,
   PlatformLayer,
   readStoredPerson,
 } from "./common.ts";
@@ -222,18 +223,18 @@ export const events = () => Effect.succeed(listEvents());
 export const home = Effect.fn("Ascendant.home")(function* () {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
-  const personsDirectory = "persons";
+  const persons = yield* personsDirectory;
 
-  if (!(yield* fs.exists(personsDirectory))) {
+  if (!(yield* fs.exists(persons))) {
     return {
       persons: { count: 0, records: [] },
       help: [ADD_PERSON_HELP],
     };
   }
 
-  const entries = yield* fs.readDirectory(personsDirectory);
+  const entries = yield* fs.readDirectory(persons);
   const records = yield* Effect.filter(entries, (entry) =>
-    fs.exists(path.join(personsDirectory, entry, "input.md")),
+    fs.exists(path.join(persons, entry, "input.md")),
   );
 
   return {

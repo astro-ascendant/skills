@@ -17,6 +17,7 @@ import {
   decodeMoment,
   KpAstroParams,
   PersonName,
+  personsDirectory,
   readStoredPerson,
   type StoredPerson,
 } from "./common.ts";
@@ -160,7 +161,7 @@ export const skyBetween = Effect.fn("Ascendant.skyBetween")(function* (
 const readMemoryOrEmpty = Effect.fn("Ascendant.readMemoryOrEmpty")(function* (name: string) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
-  const file = path.join("persons", name, "MEMORY.md");
+  const file = path.join(yield* personsDirectory, name, "MEMORY.md");
   const found = yield* fs.exists(file);
   return {
     file: `persons/${name}/MEMORY.md`,

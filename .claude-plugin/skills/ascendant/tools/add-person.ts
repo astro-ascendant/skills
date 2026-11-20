@@ -15,6 +15,7 @@ import {
   calculationContext,
   ChartIncomplete,
   decodeMoment,
+  personsDirectory,
   KpAstroParamsLayer,
   type Latitude,
   type Longitude,
@@ -568,7 +569,7 @@ function formatArgalaMarkdown(result: Effect.Success<ReturnType<typeof Argala.ca
 export const addPerson = Effect.fn("Ascendant.addPerson")(function* (storedPerson: StoredPerson) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
-  const personDirectory = path.join("persons", storedPerson.name);
+  const personDirectory = path.join(yield* personsDirectory, storedPerson.name);
   const inputFile = path.join(personDirectory, "input.md");
   const personDirectoryExists = yield* fs.exists(personDirectory);
 

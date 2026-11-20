@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, it } from "@effect/vitest";
 import {
   detectProviders,
   parseProviders,
@@ -11,19 +11,19 @@ const bins =
     names.includes(name);
 
 describe("parseProviders", () => {
-  test("splits, trims and dedupes ids, and expands all", () => {
+  it("splits, trims and dedupes ids, and expands all", () => {
     expect(parseProviders(" Claude, cursor,claude ")).toEqual(["claude", "cursor"]);
     expect(parseProviders("all")).toContain("windsurf");
   });
 
-  test("rejects an empty value and unknown providers", () => {
+  it("rejects an empty value and unknown providers", () => {
     expect(() => parseProviders("")).toThrow("--providers needs a value");
     expect(() => parseProviders("claud")).toThrow("Unknown provider");
   });
 });
 
 describe("detectProviders", () => {
-  test("matches on a binary or a home directory", () => {
+  it("matches on a binary or a home directory", () => {
     const detected = detectProviders({
       hasBin: bins("claude"),
       hasHomeDir: (dir) => dir === ".cursor",
@@ -33,7 +33,7 @@ describe("detectProviders", () => {
 });
 
 describe("planInstall", () => {
-  test("uses native plugins when the CLIs exist and batches the rest into one skills call", () => {
+  it("uses native plugins when the CLIs exist and batches the rest into one skills call", () => {
     const { steps, notes } = planInstall({
       providers: ["claude", "codex", "opencode", "cursor", "gemini"],
       scope: "global",
@@ -51,7 +51,7 @@ describe("planInstall", () => {
     expect(notes).toEqual([]);
   });
 
-  test("repairs a stale Codex marketplace source before retrying the add", () => {
+  it("repairs a stale Codex marketplace source before retrying the add", () => {
     const { steps } = planInstall({
       providers: ["codex"],
       scope: "global",
@@ -64,7 +64,7 @@ describe("planInstall", () => {
     expect(steps[1].recover).toBeUndefined();
   });
 
-  test("falls back to the skill when a plugin CLI is missing or OpenCode is v1", () => {
+  it("falls back to the skill when a plugin CLI is missing or OpenCode is v1", () => {
     const { steps, notes } = planInstall({
       providers: ["claude", "opencode"],
       scope: "project",
@@ -88,7 +88,7 @@ describe("planInstall", () => {
     expect(notes[0]).toContain("OpenCode v2");
   });
 
-  test("project scope maps to Claude project scope and notes Codex is per-user", () => {
+  it("project scope maps to Claude project scope and notes Codex is per-user", () => {
     const { steps, notes } = planInstall({
       providers: ["claude", "codex"],
       scope: "project",
@@ -99,7 +99,7 @@ describe("planInstall", () => {
     expect(notes).toEqual(["Codex plugins are per-user; the Codex plugin installs globally."]);
   });
 
-  test("notes that the OpenCode plugin is global under project scope", () => {
+  it("notes that the OpenCode plugin is global under project scope", () => {
     const { steps, notes } = planInstall({
       providers: ["opencode"],
       scope: "project",

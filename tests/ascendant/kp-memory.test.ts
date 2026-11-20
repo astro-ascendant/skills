@@ -1,17 +1,7 @@
-import { appendFile, mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { describe, expect, test } from "bun:test";
-import { DateTime, Effect, Option, Schema } from "effect";
+import { describe, expect, it } from "@effect/vitest";
+import { DateTime, Effect, FileSystem, Option, Path } from "effect";
 
-import { addPersonFromInput } from "../../skills/ascendant/tools/add-person.ts";
-import {
-  AppLayer,
-  Latitude,
-  Longitude,
-  OffsetMoment,
-  PersonName,
-} from "../../skills/ascendant/tools/common.ts";
+import { PlatformLayer, Workspace } from "../../skills/ascendant/tools/common.ts";
 import { findKpEvent, type House } from "../../skills/ascendant/tools/events.ts";
 import {
   checkBirthTime,
@@ -34,6 +24,7 @@ import {
 import { parseMemory } from "../../skills/ascendant/tools/memory.ts";
 import { JudgeInput } from "../../skills/ascendant/tools/tool-specs.ts";
 import { decodeInput, judge } from "../../skills/ascendant/tools/workflows.ts";
+import { addPersonNamed, inTempWorkspace } from "../support.ts";
 
 const marriage = Option.getOrThrow(findKpEvent("marriage"));
 const at = (epochMillis: number): DateTime.Utc => DateTime.makeUnsafe(epochMillis);
@@ -54,7 +45,7 @@ describe("memory parser", () => {
     "A free line that is not an entry",
   ].join("\r\n");
 
-  test("keeps tagged events oldest first and says why other lines were ignored", () => {
+  it("keeps tagged events oldest first and says why other lines were ignored", () => {
     const memory = parseMemory(text);
     expect(
       memory.events.map((entry) => [entry.line, entry.date, entry.event.id, entry.message]),
@@ -74,7 +65,7 @@ describe("memory parser", () => {
     ]);
   });
 
-  test("an empty or header-only file is an empty memory", () => {
+  it("an empty or header-only file is an empty memory", () => {
     expect(parseMemory("")).toEqual({ events: [], ignored: [] });
     expect(parseMemory("---\nname: Ada\n---\n")).toEqual({ events: [], ignored: [] });
   });
@@ -131,7 +122,7 @@ const past = (millis: number) => ({ date: "2000-01-01", noonUtc: at(millis), eve
 describe("hindcast", () => {
   const facts = factsWith(["Moon", "Mars"], [7]);
 
-  test("a past event inside a conjoined period scores both points", () => {
+  it("a past event inside a conjoined period scores both points", () => {
     const fit = fitPastEvent(facts, periods, past(50), span);
     expect(fit).toEqual({
       date: "2000-01-01",
@@ -144,7 +135,7 @@ describe("hindcast", () => {
     expect(scoreFit(fit)).toBe(2);
   });
 
-  test("outside a conjoined period, or against a denying sub lord, it scores less", () => {
+  it("outside a conjoined period, or against a denying sub lord, it scores less", () => {
     expect(scoreFit(fitPastEvent(facts, periods, past(200), span))).toBe(1);
     const denying = factsWith(["Moon", "Mars"], [6]);
     const fit = fitPastEvent(denying, periods, past(200), span);
@@ -152,7 +143,7 @@ describe("hindcast", () => {
     expect(scoreFit(fit)).toBe(0);
   });
 
-  test("coverage is the share of the span the conjoined periods fill", () => {
+  it("coverage is the share of the span the conjoined periods fill", () => {
     const all = factsWith(["Moon", "Mars", "Saturn"], [7]);
     expect(fitPastEvent(all, periods, past(50), span).conjoinedShareOfLife).toBe(1);
   });
@@ -162,19 +153,19 @@ describe("birth-time check", () => {
   const trials = (scores: ReadonlyArray<number>) =>
     scores.map((score, index) => ({ offsetMinutes: index - 2, score }));
 
-  test("needs three past events", () => {
+  it("needs three past events", () => {
     expect(checkBirthTime([], 2, 15)).toMatchObject({ status: "unverified", pastEvents: 2 });
   });
 
-  test("can be switched off", () => {
+  it("can be switched off", () => {
     expect(checkBirthTime([], 5, 0).status).toBe("unverified");
   });
 
-  test("all trials equal: the events cannot tell the moments apart", () => {
+  it("all trials equal: the events cannot tell the moments apart", () => {
     expect(checkBirthTime(trials([4, 4, 4, 4, 4]), 3, 2).status).toBe("uninformative");
   });
 
-  test("recorded moment among the best: consistent", () => {
+  it("recorded moment among the best: consistent", () => {
     expect(checkBirthTime(trials([2, 6, 6, 3, 1]), 3, 2)).toMatchObject({
       status: "consistent",
       recordedScore: Option.some(6),
@@ -183,14 +174,14 @@ describe("birth-time check", () => {
     });
   });
 
-  test("one better trial: suspect with a provisional offset", () => {
+  it("one better trial: suspect with a provisional offset", () => {
     expect(checkBirthTime(trials([2, 3, 4, 6, 1]), 3, 2)).toMatchObject({
       status: "suspect",
       provisionalOffsetMinutes: Option.some(1),
     });
   });
 
-  test("several better trials: suspect, no offset chosen", () => {
+  it("several better trials: suspect, no offset chosen", () => {
     const result = checkBirthTime(trials([6, 3, 4, 6, 1]), 3, 2);
     expect(result.status).toBe("suspect");
     expect(Option.isNone(result.provisionalOffsetMinutes)).toBe(true);
@@ -214,7 +205,7 @@ describe("confidence with memory", () => {
     ...overrides,
   });
 
-  test("a consistent birth time replaces the unverified note", () => {
+  it("a consistent birth time replaces the unverified note", () => {
     const result = confidenceWithMemory(
       base,
       checkBirthTime(
@@ -234,7 +225,7 @@ describe("confidence with memory", () => {
     ]);
   });
 
-  test("an empty memory keeps the level and says why the birth time is unverified", () => {
+  it("an empty memory keeps the level and says why the birth time is unverified", () => {
     const result = confidenceWithMemory(base, checkBirthTime([], 0, 15), []);
     expect(result.level).toBe("moderate");
     expect(result.basis[0]).toBe(
@@ -242,7 +233,7 @@ describe("confidence with memory", () => {
     );
   });
 
-  test("a denied or mistimed past event lowers confidence", () => {
+  it("a denied or mistimed past event lowers confidence", () => {
     const unverified = checkBirthTime([], 1, 15);
     expect(confidenceWithMemory(base, unverified, [fit({ verdict: "denied" })]).level).toBe("low");
     expect(confidenceWithMemory(base, unverified, [fit({ inConjoinedPeriod: false })]).level).toBe(
@@ -250,7 +241,7 @@ describe("confidence with memory", () => {
     );
   });
 
-  test("hits under near-total coverage are called weak evidence", () => {
+  it("hits under near-total coverage are called weak evidence", () => {
     const result = confidenceWithMemory(base, checkBirthTime([], 1, 15), [
       fit({ conjoinedShareOfLife: 0.95 }),
     ]);
@@ -281,7 +272,7 @@ describe("once-only events", () => {
     occurred: [],
   };
 
-  test("a recorded marriage stops marriage windows", () => {
+  it("a recorded marriage stops marriage windows", () => {
     expect(judgeKp(facts, marriage, periods, everyLordInMoonStar, options).timing.status).toBe(
       "windows",
     );
@@ -293,7 +284,7 @@ describe("once-only events", () => {
     expect(judged.promise.verdict).toBe("promised");
   });
 
-  test("a repeatable event is still timed after it has happened", () => {
+  it("a repeatable event is still timed after it has happened", () => {
     const travel = Option.getOrThrow(findKpEvent("foreign-travel"));
     const judged = judgeKp(
       factsWith(["Moon", "Mars"], [12]),
@@ -316,67 +307,60 @@ describe("judge workflow with memory", () => {
     from: "2026-01-01T00:00:00+05:30",
     years: 5,
   };
-  const run = (raw: unknown) =>
-    Effect.runPromise(decodeInput(JudgeInput, raw, "help").pipe(Effect.flatMap(judge)));
+  const run = (raw: unknown) => decodeInput(JudgeInput, raw, "help").pipe(Effect.flatMap(judge));
 
-  test("empty memory, then tagged events: deterministic, and the memory used is listed", async () => {
-    const workspace = await mkdtemp(join(tmpdir(), "ascendant-memory-"));
-    const previous = process.cwd();
-    process.chdir(workspace);
-    try {
-      await Effect.runPromise(
-        addPersonFromInput(
-          Schema.decodeUnknownSync(PersonName)(input.name),
-          Schema.decodeUnknownSync(OffsetMoment)("1990-01-01T12:00:00+05:30"),
-          Schema.decodeUnknownSync(Latitude)(12.9716),
-          Schema.decodeUnknownSync(Longitude)(77.5946),
-        ).pipe(Effect.provide(AppLayer)),
-      );
+  const appendToMemory = (lines: ReadonlyArray<string>) =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const file = path.join(yield* Workspace, "persons", input.name, "MEMORY.md");
+      const existing = yield* fs.readFileString(file);
+      yield* fs.writeFileString(file, [existing, ...lines, ""].join("\n"));
+    }).pipe(Effect.provide(PlatformLayer));
 
-      const empty = await run(input);
-      expect(empty.memory).toMatchObject({
-        file: "persons/Memory Subject/MEMORY.md",
-        status: "empty",
-        used: [],
-        birthTime: { status: "unverified" },
-      });
-      const ignored = await run({ ...input, useMemory: false });
-      expect(ignored.memory).toEqual({ status: "not-used" });
-      expect(ignored.promise).toEqual(empty.promise);
-      expect(ignored.timing).toEqual(empty.timing);
+  it.effect("empty memory, then tagged events: deterministic, and the memory used is listed", () =>
+    inTempWorkspace(
+      Effect.gen(function* () {
+        yield* addPersonNamed(input.name);
 
-      await appendFile(
-        join("persons", input.name, "MEMORY.md"),
-        [
+        const empty = yield* run(input);
+        expect(empty.memory).toMatchObject({
+          file: "persons/Memory Subject/MEMORY.md",
+          status: "empty",
+          used: [],
+          birthTime: { status: "unverified" },
+        });
+        const ignored = yield* run({ ...input, useMemory: false });
+        expect(ignored.memory).toEqual({ status: "not-used" });
+        expect(ignored.promise).toEqual(empty.promise);
+        expect(ignored.timing).toEqual(empty.timing);
+
+        yield* appendToMemory([
           "- [15/06/2008]: Moved school",
           "- [10/07/2012] #higher-education: Started university",
           "- [01/08/2015] #service-or-business: First job",
           "- [20/02/2019] #marriage: Married",
-          "",
-        ].join("\n"),
-      );
+        ]);
 
-      const first = await run(input);
-      const second = await run(input);
-      expect(JSON.stringify(second)).toBe(JSON.stringify(first));
-      expect(first.memory).toMatchObject({ status: "used", ignored: [{ reason: "untagged" }] });
-      if (first.memory.status !== "used") throw new Error("memory not used");
-      expect(first.memory.used.map((entry) => entry.event)).toEqual([
-        "higher-education",
-        "service-or-business",
-        "marriage",
-      ]);
-      expect(first.memory.hindcast).toHaveLength(3);
-      expect(first.memory.birthTime).toMatchObject({ pastEvents: 3, windowMinutes: 15 });
-      expect(first.memory.birthTime.status).not.toBe("unverified");
-      expect(first.timing.status).toBe("already-occurred");
-      expect(first.promise).toEqual(empty.promise);
+        const first = yield* run(input);
+        const second = yield* run(input);
+        expect(JSON.stringify(second)).toBe(JSON.stringify(first));
+        expect(first.memory).toMatchObject({ status: "used", ignored: [{ reason: "untagged" }] });
+        const memory = first.memory.status === "used" ? first.memory : undefined;
+        expect(memory?.used.map((entry) => entry.event)).toEqual([
+          "higher-education",
+          "service-or-business",
+          "marriage",
+        ]);
+        expect(memory?.hindcast).toHaveLength(3);
+        expect(memory?.birthTime).toMatchObject({ pastEvents: 3, windowMinutes: 15 });
+        expect(memory?.birthTime.status).not.toBe("unverified");
+        expect(first.timing.status).toBe("already-occurred");
+        expect(first.promise).toEqual(empty.promise);
 
-      const unchecked = await run({ ...input, rectifyMinutes: 0 });
-      expect(unchecked.memory).toMatchObject({ birthTime: { status: "unverified" } });
-    } finally {
-      process.chdir(previous);
-      await rm(workspace, { recursive: true, force: true });
-    }
-  });
+        const unchecked = yield* run({ ...input, rectifyMinutes: 0 });
+        expect(unchecked.memory).toMatchObject({ birthTime: { status: "unverified" } });
+      }),
+    ),
+  );
 });

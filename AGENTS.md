@@ -10,7 +10,7 @@ Most of the tree is **generated**; only a few directories are hand-authored.
 ## Sources of truth (edit only these)
 
 - `skills/ascendant/SKILL.src.md` builds `skills/ascendant/SKILL.md`. Keep the `.src.md` name; `npx skills` discovery relies on the literal `SKILL.md` being the built copy.
-- `skills/ascendant/{instructions,references,scripts,tools,agents}/` is the skill payload, copied into plugin distributions. Tests live under the root `tests/` directory.
+- `skills/ascendant/{instructions,references,scripts,tools,agents}/` is the skill payload, copied into plugin distributions. Tests live under the root `tests/` directory and use `@effect/vitest`: `it.effect` for anything that runs an Effect, plain `it` for pure functions. Never run them with `bun test`. Test files run one at a time (`vitest.config.ts`), because the native ephemeris crashes in parallel workers, and workers cannot `process.chdir`: a test points the tools at a temporary folder by providing `Workspace` (`tests/support.ts`).
 - `.opencode/plugins/ascendant/` is the hand-written plugin.
 - `scripts/*.mjs` are the build and verification tools (dependency-free).
 - `packages/ascendant-skills/` is the hand-written `npx ascendant-skills install` CLI, built on `effect/cli` (Node, with `effect`, `@effect/platform-node` and `@effect/platform-node-shared` pinned exactly to 4.1.1). Its command matrix is `lib/plan.mjs` (pure, no Effect), tested by `tests/installer/`. Only its `version` is stamped by `sync-versions`.
@@ -28,9 +28,9 @@ Generated, committed, never hand-edit (a rebuild overwrites them and CI fails on
 
 ```bash
 make build      # full gate: installs, version sync, rebuild, typecheck, test, lint, format:check
-bun test        # all tests (tests/ascendant and tests/installer)
-bun test tests/ascendant/kp-lords.test.ts          # single file
-bun test -t "sub after Ketu"                       # single test by name
+bun run test    # all tests with vitest (tests/ascendant, tests/eval, tests/installer)
+bun run test tests/ascendant/kp-lords.test.ts      # single file
+bun run test -t "sub after Ketu"                   # single test by name
 bun run typecheck        # two tsc projects: skills/ascendant and .opencode
 bun run lint             # oxlint
 bun run format           # oxfmt, fixed file list; does not touch markdown or packages/
@@ -52,6 +52,7 @@ bun scripts/build-opencode-plugin.mjs --check  # drift check, builds to a temp d
 - `skills/ascendant/tools/*.ts` is the shared engine (Effect + `astro-ascendant`). CLI: `bun skills/ascendant/tools/ascendant.ts <add-person|transit|ruling-planets|judge|events>`.
 - Each tool is defined once in `tool-specs.ts` (plain `effect` Schemas, name, description). `workflows.ts` holds one typed `Effect` per tool (typed input, `CommandError` out). `toolkit.ts` wraps the specs as an `effect/ai` Toolkit; `cli.ts` (`effect/cli`) and `ascendant.ts` are the command line. The OpenCode host does not serve `effect/ai` or `effect/cli`, so the plugin imports only `tool-specs.ts` and `workflows.ts`; `check:plugin` enforces it.
 - `kp-judge.ts` is the deterministic KP judgment (promise, ranked significators, timing windows): pure functions over chart facts, with no clock, file access, or model. `judge.ts` loads a saved person and calls it. `events.ts` holds the house groups from `references/kp/house-grouping.md` as data; `tests/ascendant/kp-events.test.ts` fails when the two disagree, so edit both together. A rule the guidebook does not state is an engine choice: it has an id in `EngineChoice` and a one-line statement in `ENGINE_CHOICES` (both in `kp-judge.ts`), the code that applies it is named after the id, and `ascendant events` lists them. Every rule a judgment fires carries a typed `source`: `Guidebook` with file and section, or `Engine` with the choice id. Add a choice there, never as a comment. `memory.ts` parses the tagged events in a person's `MEMORY.md` (`- [DD/MM/YYYY] #<event-id>: message`) and `kp-hindcast.ts` checks the rules and the birth time against them; an empty memory is valid and the judge then works from the chart alone.
+- Person records resolve against the `Workspace` reference in `common.ts`, which defaults to the current directory. Build person paths from `personsDirectory`, never from a bare `"persons"`.
 - `.opencode/plugins/ascendant/` imports the engine as `../../../skills/ascendant/tools/*.ts`. `build-opencode-plugin.mjs` rewrites that prefix to `../skills` in the package, so keep the repo-relative form when editing plugin sources.
 - OpenCode registers the skill, the `/ascendant` command, and both tools programmatically. It reads `skills/ascendant/SKILL.md` at runtime, so there is no OpenCode skill copy to regenerate.
 - `skills/ascendant/scripts/ascendant.sh` copies an **explicit allowlist** of tool files into `./.ascendant-agent/` in the user's cwd. Any new file under `tools/` must be added there or the runtime copy will silently miss it.

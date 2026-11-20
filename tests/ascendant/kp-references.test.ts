@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { describe, expect, test } from "bun:test";
+import { describe, expect, it } from "@effect/vitest";
 
 import { kpLordChain } from "../../skills/ascendant/tools/kp-lords.ts";
 
@@ -35,7 +35,7 @@ describe("sub-lord table", () => {
     .slice(1)
     .map((line) => line.split(","));
 
-  test("covers the zodiac once, in order, with well-formed degrees", () => {
+  it("covers the zodiac once, in order, with well-formed degrees", () => {
     let previousEnd = 0;
     rows.forEach((row, index) => {
       const [number, sign, from, to] = row;
@@ -48,7 +48,7 @@ describe("sub-lord table", () => {
     expect(previousEnd).toBeCloseTo(360, 3);
   });
 
-  test("agrees with the engine's lord chain at every row", () => {
+  it("agrees with the engine's lord chain at every row", () => {
     for (const row of rows) {
       const [number, sign, from, to, signLord, starLord, subLord] = row;
       const offset = SIGNS.indexOf(sign ?? "") * 30;
@@ -65,7 +65,7 @@ describe("sub-lord table", () => {
 });
 
 describe("house grouping", () => {
-  test("has twelve sections whose events name that house as primary", () => {
+  it("has twelve sections whose events name that house as primary", () => {
     let section = 0;
     const sections: number[] = [];
     let events = 0;

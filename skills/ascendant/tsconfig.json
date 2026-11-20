@@ -16,5 +16,10 @@
     "noUnusedParameters": true,
     "types": ["bun-types"]
   },
-  "include": ["tools/**/*.ts", "../../tests/**/*.ts", "../../eval/**/*.ts"]
+  "include": [
+    "tools/**/*.ts",
+    "../../tests/**/*.ts",
+    "../../eval/**/*.ts",
+    "../../vitest.config.ts"
+  ]
 }

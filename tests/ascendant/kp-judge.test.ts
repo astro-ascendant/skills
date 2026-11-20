@@ -1,17 +1,6 @@
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { describe, expect, test } from "bun:test";
-import { DateTime, Effect, Option, Schema } from "effect";
+import { describe, expect, it } from "@effect/vitest";
+import { DateTime, Effect, Option } from "effect";
 
-import { addPersonFromInput } from "../../skills/ascendant/tools/add-person.ts";
-import {
-  AppLayer,
-  Latitude,
-  Longitude,
-  OffsetMoment,
-  PersonName,
-} from "../../skills/ascendant/tools/common.ts";
 import { findKpEvent, type House, type KpEvent } from "../../skills/ascendant/tools/events.ts";
 import {
   houseGroup,
@@ -29,6 +18,7 @@ import {
 } from "../../skills/ascendant/tools/kp-judge.ts";
 import { JudgeInput } from "../../skills/ascendant/tools/tool-specs.ts";
 import { decodeInput, judge } from "../../skills/ascendant/tools/workflows.ts";
+import { addPersonNamed, inTempWorkspace } from "../support.ts";
 
 const event = (id: string): KpEvent => Option.getOrThrow(findKpEvent(id));
 
@@ -93,7 +83,7 @@ const marriage = event("marriage");
 const marriageGroup = houseGroup(marriage);
 
 describe("house group", () => {
-  test("marriage: 2, 7, 11 conducive and their 12th houses detrimental", () => {
+  it("marriage: 2, 7, 11 conducive and their 12th houses detrimental", () => {
     expect(marriageGroup).toEqual({
       conducive: [2, 7, 11],
       parenthesised: [],
@@ -101,7 +91,7 @@ describe("house group", () => {
     });
   });
 
-  test("a conducive house is never also detrimental", () => {
+  it("a conducive house is never also detrimental", () => {
     expect(houseGroup(event("service-or-business"))).toEqual({
       conducive: [6, 7, 10],
       parenthesised: [],
@@ -109,7 +99,7 @@ describe("house group", () => {
     });
   });
 
-  test("parenthesised houses are optional, outside both groups", () => {
+  it("parenthesised houses are optional, outside both groups", () => {
     expect(houseGroup(event("obtaining-loans"))).toEqual({
       conducive: [2, 11],
       parenthesised: [6],
@@ -130,18 +120,18 @@ describe("promise", () => {
       marriageGroup,
     );
 
-  test("sub lord signifying only conducive houses: promised", () => {
+  it("sub lord signifying only conducive houses: promised", () => {
     const result = promise({ 1: [11], 3: [4] });
     expect(result.subLord).toBe("Venus");
     expect(result.verdict).toBe("promised");
     expect(result.rules.map((rule) => rule.rule)).toEqual(["promise.conducive-house"]);
   });
 
-  test("sub lord signifying only detrimental houses: denied", () => {
+  it("sub lord signifying only detrimental houses: denied", () => {
     expect(promise({ 2: [6], 4: [10] }).verdict).toBe("denied");
   });
 
-  test("sub lord signifying neither: not indicated, with the engine named as source", () => {
+  it("sub lord signifying neither: not indicated, with the engine named as source", () => {
     const result = promise({ 1: [4], 2: [9] });
     expect(result.verdict).toBe("not-indicated");
     expect(result.rules.at(-1)).toMatchObject({
@@ -150,7 +140,7 @@ describe("promise", () => {
     });
   });
 
-  test("mixed: the stronger level decides the lean", () => {
+  it("mixed: the stronger level decides the lean", () => {
     expect(promise({ 1: [7], 3: [6] })).toMatchObject({
       verdict: "mixed",
       lean: "favourable",
@@ -165,7 +155,7 @@ describe("promise", () => {
     });
   });
 
-  test("a self-strength sub lord reads level 2 before level 1", () => {
+  it("a self-strength sub lord reads level 2 before level 1", () => {
     const tenanted = promise({ 1: [6], 2: [7] });
     expect(tenanted).toMatchObject({ selfStrength: false, lean: "unfavourable" });
 
@@ -186,13 +176,13 @@ describe("significators", () => {
     },
   });
 
-  test("only planets signifying a conducive house are listed", () => {
+  it("only planets signifying a conducive house are listed", () => {
     const ranked = rankSignificators(facts, marriageGroup, noRulingPlanets);
     expect(ranked.map((entry) => entry.planet)).toEqual(["Sun", "Moon", "Jupiter", "Mars"]);
     expect(ranked.map((entry) => entry.rank)).toEqual([1, 2, 3, 4]);
   });
 
-  test("the cusp sub lord leads, then more houses, then the stronger level", () => {
+  it("the cusp sub lord leads, then more houses, then the stronger level", () => {
     const ranked = rankSignificators(facts, marriageGroup, noRulingPlanets);
     expect(ranked[0]).toMatchObject({ planet: "Sun", criteria: ["is-cusp-sub-lord"] });
     expect(ranked[1]?.conduciveHouses).toEqual([
@@ -201,7 +191,7 @@ describe("significators", () => {
     ]);
   });
 
-  test("a planet stronger for a detrimental house is ranked last, not removed", () => {
+  it("a planet stronger for a detrimental house is ranked last, not removed", () => {
     const ranked = rankSignificators(facts, marriageGroup, noRulingPlanets);
     expect(ranked.at(-1)).toMatchObject({
       planet: "Mars",
@@ -209,7 +199,7 @@ describe("significators", () => {
     });
   });
 
-  test("a ruling planet outranks the other criteria", () => {
+  it("a ruling planet outranks the other criteria", () => {
     const ranked = rankSignificators(
       facts,
       marriageGroup,
@@ -218,7 +208,7 @@ describe("significators", () => {
     expect(ranked[0]).toMatchObject({ planet: "Jupiter", criteria: ["ruling-planet"] });
   });
 
-  test("a significator in the sub of a purely detrimental planet is marked", () => {
+  it("a significator in the sub of a purely detrimental planet is marked", () => {
     const ranked = rankSignificators(
       makeFacts({
         signifies: { Sun: { 1: [7] }, Saturn: { 1: [6] } },
@@ -281,7 +271,7 @@ describe("timing", () => {
       end: DateTime.toEpochMillis(window.end),
     }));
 
-  test("a conjoined period with a lord outside significator stars gives no window", () => {
+  it("a conjoined period with a lord outside significator stars gives no window", () => {
     const sunInSaturnStar = skyWhere([
       [200, {}],
       [400, { Sun: "Saturn" }],
@@ -297,7 +287,7 @@ describe("timing", () => {
     ]);
   });
 
-  test("adjacent agreeing days in one period are one window", () => {
+  it("adjacent agreeing days in one period are one window", () => {
     const timing = timeEvent(
       significators,
       periods,
@@ -313,7 +303,7 @@ describe("timing", () => {
     expect(millisOf(timing).map((window) => window.start)).toEqual([310, 340]);
   });
 
-  test("conjoined periods without transit agreement are reported, not timed", () => {
+  it("conjoined periods without transit agreement are reported, not timed", () => {
     const timing = timeEvent(significators, periods, skyWhere([[400, { Sun: "Saturn" }]]), {
       from: at(0),
       to: at(500),
@@ -330,7 +320,7 @@ describe("timing", () => {
     ]);
   });
 
-  test("keeps periods whose three lords are all significators, strongest first", () => {
+  it("keeps periods whose three lords are all significators, strongest first", () => {
     const timing = timeEvent(significators, periods, everyLordInASignificatorStar, {
       from: at(0),
       to: at(450),
@@ -345,7 +335,7 @@ describe("timing", () => {
     ]);
   });
 
-  test("reports the absence of a conjoined period", () => {
+  it("reports the absence of a conjoined period", () => {
     const timing = timeEvent(significators, periods, everyLordInASignificatorStar, {
       from: at(100),
       to: at(200),
@@ -358,7 +348,7 @@ describe("timing", () => {
     });
   });
 
-  test("a denied promise is not timed, and confidence is never above moderate", () => {
+  it("a denied promise is not timed, and confidence is never above moderate", () => {
     const judgment = judgeKp(
       makeFacts({ cuspSubLords: { 7: "Venus" }, signifies: { Venus: { 1: [6] } } }),
       marriage,
@@ -379,59 +369,47 @@ describe("judge workflow", () => {
     from: "2026-01-01T00:00:00+05:30",
     years: 5,
   };
-  const run = (raw: unknown) =>
-    Effect.runPromise(decodeInput(JudgeInput, raw, "help").pipe(Effect.flatMap(judge)));
+  const run = (raw: unknown) => decodeInput(JudgeInput, raw, "help").pipe(Effect.flatMap(judge));
 
-  test("the same input gives a byte-identical judgment", async () => {
-    const workspace = await mkdtemp(join(tmpdir(), "ascendant-judge-"));
-    const previous = process.cwd();
-    process.chdir(workspace);
-    try {
-      await Effect.runPromise(
-        addPersonFromInput(
-          Schema.decodeUnknownSync(PersonName)(input.name),
-          Schema.decodeUnknownSync(OffsetMoment)("1990-01-01T12:00:00+05:30"),
-          Schema.decodeUnknownSync(Latitude)(12.9716),
-          Schema.decodeUnknownSync(Longitude)(77.5946),
-        ).pipe(Effect.provide(AppLayer)),
-      );
-      const first = await run(input);
-      const second = await run(input);
-      expect(JSON.stringify(second)).toBe(JSON.stringify(first));
+  it.effect("the same input gives a byte-identical judgment", () =>
+    inTempWorkspace(
+      Effect.gen(function* () {
+        yield* addPersonNamed(input.name);
+        const first = yield* run(input);
+        const second = yield* run(input);
+        expect(JSON.stringify(second)).toBe(JSON.stringify(first));
 
-      expect(first.engine).toBe("kp-judge/4");
-      expect(first.calculation).toMatchObject({
-        school: "KP",
-        ayanamsa: "KrishnamurtiVP291",
-        houseSystem: "Placidus",
-      });
-      expect(first.event).toMatchObject({ conducive: [2, 7, 11], detrimental: [1, 6, 10] });
-      expect(first.window).toEqual({
-        from: "2025-12-31T18:30:00.000Z",
-        to: "2031-01-01T00:30:00.000Z",
-      });
-      for (const window of first.timing.windows) {
-        expect(window.start >= first.window.from && window.end <= first.window.to).toBe(true);
-      }
+        expect(first.engine).toBe("kp-judge/4");
+        expect(first.calculation).toMatchObject({
+          school: "KP",
+          ayanamsa: "KrishnamurtiVP291",
+          houseSystem: "Placidus",
+        });
+        expect(first.event).toMatchObject({ conducive: [2, 7, 11], detrimental: [1, 6, 10] });
+        expect(first.window).toEqual({
+          from: "2025-12-31T18:30:00.000Z",
+          to: "2031-01-01T00:30:00.000Z",
+        });
+        first.timing.windows.forEach((window) =>
+          expect(window.start >= first.window.from && window.end <= first.window.to).toBe(true),
+        );
 
-      const withRulingPlanets = await run({
-        ...input,
-        judgmentMoment: "2026-09-23T10:00:00+05:30",
-      });
-      expect(withRulingPlanets.rulingPlanets?.planets.length).toBeGreaterThan(0);
-      expect(withRulingPlanets.promise).toEqual(first.promise);
-    } finally {
-      process.chdir(previous);
-      await rm(workspace, { recursive: true, force: true });
-    }
-  });
+        const withRulingPlanets = yield* run({
+          ...input,
+          judgmentMoment: "2026-09-23T10:00:00+05:30",
+        });
+        expect(withRulingPlanets.rulingPlanets?.planets.length).toBeGreaterThan(0);
+        expect(withRulingPlanets.promise).toEqual(first.promise);
+      }),
+    ),
+  );
 
-  test("an unknown or refused event is a validation error", async () => {
-    for (const refused of ["nope", "accident", "long-life"]) {
-      const exit = await Effect.runPromiseExit(
-        decodeInput(JudgeInput, { ...input, event: refused }, "help"),
-      );
-      expect(exit._tag).toBe("Failure");
-    }
-  });
+  it.effect("an unknown or refused event is a validation error", () =>
+    Effect.forEach(["nope", "accident", "long-life"], (refused) =>
+      Effect.map(
+        Effect.exit(decodeInput(JudgeInput, { ...input, event: refused }, "help")),
+        (exit) => expect(exit._tag).toBe("Failure"),
+      ),
+    ),
+  );
 });

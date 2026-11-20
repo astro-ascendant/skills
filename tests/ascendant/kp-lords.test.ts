@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, it } from "@effect/vitest";
 
 import {
   dmsOf,
@@ -10,19 +10,19 @@ import {
 } from "../../skills/ascendant/tools/kp-lords.ts";
 
 describe("kp lord chain", () => {
-  test("starts Ashwini with Ketu as star lord", () => {
+  it("starts Ashwini with Ketu as star lord", () => {
     expect(starLordOf(0)).toBe("Ketu");
     expect(subLordOf(0)).toBe("Ketu");
     expect(subSubLordOf(0)).toBe("Ketu");
   });
 
-  test("moves to Venus sub after Ketu's 7/120 of Ashwini", () => {
+  it("moves to Venus sub after Ketu's 7/120 of Ashwini", () => {
     const insideVenusSub = (7 / 120) * (360 / 27) + 1e-9;
     expect(subLordOf(insideVenusSub)).toBe("Venus");
     expect(subSubLordOf(insideVenusSub)).toBe("Venus");
   });
 
-  test("exposes sign-relative position for table lookup", () => {
+  it("exposes sign-relative position for table lookup", () => {
     expect(signLordOf(324)).toBe("Saturn");
     expect(signDegreeOf(324)).toBeCloseTo(24, 10);
     expect(dmsOf(324)).toBe("24°00'00\"");

@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { describe, expect, test } from "bun:test";
+import { describe, expect, it } from "@effect/vitest";
 
 import { EXCLUDED_KP_EVENTS, KP_EVENTS } from "../../skills/ascendant/tools/events.ts";
 
@@ -44,7 +44,7 @@ const written = (supporting: ReadonlyArray<number>, parenthesised: ReadonlyArray
 describe("KP event table", () => {
   const rows = guidebookRows();
 
-  test("every guidebook row is either judged or refused, never both", () => {
+  it("every guidebook row is either judged or refused, never both", () => {
     expect(rows.length).toBe(KP_EVENTS.length + EXCLUDED_KP_EVENTS.length);
     for (const row of rows) {
       const judged = KP_EVENTS.filter(
@@ -64,7 +64,7 @@ describe("KP event table", () => {
     }
   });
 
-  test("judged events carry the guidebook's houses exactly", () => {
+  it("judged events carry the guidebook's houses exactly", () => {
     for (const event of KP_EVENTS) {
       const row = rows.find(
         (candidate) => candidate.label === event.label && candidate.primary === event.primary,
@@ -76,12 +76,12 @@ describe("KP event table", () => {
     }
   });
 
-  test("event ids are unique", () => {
+  it("event ids are unique", () => {
     const ids = KP_EVENTS.map((event) => event.id);
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  test("no death, accident, assault or illness row is judged", () => {
+  it("no death, accident, assault or illness row is judged", () => {
     const blocked = /death|accident|suicide|rape|life$|sickness|disease-|proneness|depression/i;
     expect(
       KP_EVENTS.filter((event) => blocked.test(event.label)).map((event) => event.label),

@@ -7,7 +7,17 @@
 import * as BunFileSystem from "@effect/platform-bun/BunFileSystem";
 import { AstroParams, Chart } from "astro-ascendant";
 import * as Swisseph from "astro-ascendant/swisseph";
-import { Array as Arr, DateTime, Effect, FileSystem, Layer, Option, Path, Schema } from "effect";
+import {
+  Array as Arr,
+  Context,
+  DateTime,
+  Effect,
+  FileSystem,
+  Layer,
+  Option,
+  Path,
+  Schema,
+} from "effect";
 
 import { Latitude, Longitude, OffsetMoment, PersonName, Sex } from "./contract.ts";
 import { PathLive } from "./path.ts";
@@ -185,12 +195,21 @@ function parseInputFrontmatter(contents: string, inputFile: string) {
   );
 }
 
+export const Workspace = Context.Reference<string>("ascendant/Workspace", {
+  defaultValue: () => ".",
+});
+
+export const personsDirectory = Effect.gen(function* () {
+  const path = yield* Path.Path;
+  return path.join(yield* Workspace, "persons");
+});
+
 export const readStoredPerson = Effect.fn("Ascendant.readStoredPerson")(function* (
   name: PersonName,
 ) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
-  const inputFile = path.join("persons", name, "input.md");
+  const inputFile = path.join(yield* personsDirectory, name, "input.md");
 
   if (!(yield* fs.exists(inputFile))) {
     return yield* new PersonRecordNotFound({

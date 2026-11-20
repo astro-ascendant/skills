@@ -8,7 +8,7 @@ build: ## Install deps, match versions, rebuild everything and verify
 	bun install --frozen-lockfile
 	(cd .opencode && bun install --frozen-lockfile)
 	bun scripts/sync-versions.mjs
-	bun run typecheck && bun test && bun run lint && bun run format:check
+	bun run typecheck && bun run test && bun run lint && bun run format:check
 
 version: ## Consume changesets into version bumps + changelogs, then restamp
 	bunx changeset version

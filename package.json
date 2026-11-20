@@ -15,7 +15,7 @@
     "ascendant": "bun skills/ascendant/tools/ascendant.ts",
     "add-person": "bun skills/ascendant/tools/ascendant.ts add-person",
     "check-transit": "bun skills/ascendant/tools/ascendant.ts transit",
-    "test": "bun test",
+    "test": "bun --bun vitest run",
     "eval": "bun eval/run.ts",
     "build:skill": "bun scripts/build-skill.mjs",
     "check:plugin": "bun scripts/check-plugin-externals.mjs",
@@ -25,7 +25,7 @@
     "typecheck": "tsc --project skills/ascendant/tsconfig.json --noEmit && tsc --project .opencode/tsconfig.json --noEmit",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
-    "format": "oxfmt skills/ascendant/tools tests eval scripts .opencode/plugins packages/ascendant-skills/bin packages/ascendant-skills/lib *.json .oxlintrc.json .oxfmtrc.json skills/ascendant/tsconfig.json .opencode/tsconfig.json",
+    "format": "oxfmt skills/ascendant/tools tests eval vitest.config.ts scripts .opencode/plugins packages/ascendant-skills/bin packages/ascendant-skills/lib *.json .oxlintrc.json .oxfmtrc.json skills/ascendant/tsconfig.json .opencode/tsconfig.json",
     "format:check": "bun run format -- --check"
   },
   "dependencies": {
@@ -37,10 +37,12 @@
   },
   "devDependencies": {
     "@changesets/cli": "^3.0.3",
+    "@effect/vitest": "4.1.1",
     "bun-types": "1.4.4",
     "oxfmt": "^0.75.0",
     "oxlint": "^1.90.0",
-    "typescript": "7.0.2"
+    "typescript": "7.0.2",
+    "vitest": "5.1.1"
   },
   "overrides": {
     "@toon-format/toon": "4.4.0"

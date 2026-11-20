@@ -1,73 +1,48 @@
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { describe, expect, test } from "bun:test";
-import { Effect, Layer, Schema } from "effect";
-import { Chart, Swisseph, Transit } from "astro-ascendant";
+import { describe, expect, it } from "@effect/vitest";
+import { Chart, Transit } from "astro-ascendant";
+import { Effect, Schema } from "effect";
 
-import {
-  AppLayer,
-  KpAstroParamsLayer,
-  Latitude,
-  Longitude,
-  OffsetMoment,
-  PersonName,
-  PlatformLayer,
-} from "../../skills/ascendant/tools/common.ts";
 import { searchTransits } from "../../skills/ascendant/tools/check-transit.ts";
-import { addPersonFromInput } from "../../skills/ascendant/tools/add-person.ts";
+import { OffsetMoment } from "../../skills/ascendant/tools/common.ts";
 import { kpLordChain } from "../../skills/ascendant/tools/kp-lords.ts";
 import { rulingPlanetsWorkflow } from "../../skills/ascendant/tools/ruling-planets.ts";
-
-const KpLayer = Layer.mergeAll(PlatformLayer, KpAstroParamsLayer, Swisseph.SwissephLayer);
+import { ADA, addAda, inTempWorkspace, KpLayer } from "../support.ts";
 
 describe("ruling planets", () => {
-  test("returns five KP ruling planets with lord chains", async () => {
-    const result = await Effect.runPromise(
-      rulingPlanetsWorkflow(
+  it.effect("returns five KP ruling planets with lord chains", () =>
+    Effect.gen(function* () {
+      const result = yield* rulingPlanetsWorkflow(
         Schema.decodeUnknownSync(OffsetMoment)("2026-09-23T10:00:00+05:30"),
-        Schema.decodeUnknownSync(Latitude)(12.9716),
-        Schema.decodeUnknownSync(Longitude)(77.5946),
-      ).pipe(Effect.provide(KpLayer)),
-    );
+        ADA.latitude,
+        ADA.longitude,
+      );
 
-    expect(result.calculation).toEqual({
-      school: "KP",
-      ayanamsa: "KrishnamurtiVP291",
-      houseSystem: "Placidus",
-      dashaSystem: "Vimshottari",
-    });
-    expect(result.rulingPlanets).toHaveLength(5);
-    expect(result.ascendant).toEqual({
-      longitude: result.ascendant.longitude,
-      ...kpLordChain(result.ascendant.longitude),
-    });
-    expect(result.moon).toEqual({
-      longitude: result.moon.longitude,
-      ...kpLordChain(result.moon.longitude),
-    });
-  });
+      expect(result.calculation).toEqual({
+        school: "KP",
+        ayanamsa: "KrishnamurtiVP291",
+        houseSystem: "Placidus",
+        dashaSystem: "Vimshottari",
+      });
+      expect(result.rulingPlanets).toHaveLength(5);
+      expect(result.ascendant).toEqual({
+        longitude: result.ascendant.longitude,
+        ...kpLordChain(result.ascendant.longitude),
+      });
+      expect(result.moon).toEqual({
+        longitude: result.moon.longitude,
+        ...kpLordChain(result.moon.longitude),
+      });
+    }).pipe(Effect.provide(KpLayer)),
+  );
 });
 
 describe("transit schools", () => {
-  test("KP school reports KP provenance and cusps", async () => {
-    const workspace = await mkdtemp(join(tmpdir(), "ascendant-kp-transit-"));
-    const previous = process.cwd();
-    process.chdir(workspace);
-
-    try {
-      await Effect.runPromise(
-        addPersonFromInput(
-          Schema.decodeUnknownSync(PersonName)("Ada"),
-          Schema.decodeUnknownSync(OffsetMoment)("1990-01-01T12:00:00+05:30"),
-          Schema.decodeUnknownSync(Latitude)(12.9716),
-          Schema.decodeUnknownSync(Longitude)(77.5946),
-        ).pipe(Effect.provide(AppLayer)),
-      );
-
-      const kp = await Effect.runPromise(
-        searchTransits(
-          Schema.decodeUnknownSync(PersonName)("Ada"),
+  it.effect("KP school reports KP provenance and cusps", () =>
+    inTempWorkspace(
+      Effect.gen(function* () {
+        yield* addAda;
+        const kp = yield* searchTransits(
+          ADA.name,
           Schema.decodeUnknownSync(OffsetMoment)("2026-08-27T22:00:00+05:30"),
           {
             planet: Schema.decodeUnknownSync(Chart.Planets)("Jupiter"),
@@ -76,13 +51,10 @@ describe("transit schools", () => {
             kinds: [Schema.decodeUnknownSync(Transit.TransitKind)("sign-ingress")],
             count: 1,
           },
-        ).pipe(Effect.provide(KpLayer)),
-      );
-      expect(kp.calculation.school).toBe("KP");
-      expect(kp.calculation.ayanamsa).toBe("KrishnamurtiVP291");
-    } finally {
-      process.chdir(previous);
-      await rm(workspace, { recursive: true, force: true });
-    }
-  });
+        ).pipe(Effect.provide(KpLayer));
+        expect(kp.calculation.school).toBe("KP");
+        expect(kp.calculation.ayanamsa).toBe("KrishnamurtiVP291");
+      }),
+    ),
+  );
 });
