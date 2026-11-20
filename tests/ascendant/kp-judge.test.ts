@@ -295,7 +295,7 @@ describe("judge workflow", () => {
       const second = await run(input);
       expect(JSON.stringify(second)).toBe(JSON.stringify(first));
 
-      expect(first.engine).toBe("kp-judge/1");
+      expect(first.engine).toBe("kp-judge/2");
       expect(first.calculation).toMatchObject({
         school: "KP",
         ayanamsa: "KrishnamurtiVP291",

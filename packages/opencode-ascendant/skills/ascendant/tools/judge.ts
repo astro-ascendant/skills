@@ -1,8 +1,21 @@
 import { Chart, Dasha } from "astro-ascendant";
-import { DateTime, Effect } from "effect";
+import { DateTime, Effect, FileSystem, Path } from "effect";
 
-import { calculationContext, decodeMoment, KpAstroParams, readStoredPerson } from "./common.ts";
+import {
+  calculationContext,
+  decodeMoment,
+  KpAstroParams,
+  readStoredPerson,
+  type StoredPerson,
+} from "./common.ts";
 import { EXCLUDED_KP_EVENTS, findKpEvent, KP_EVENTS, type House } from "./events.ts";
+import {
+  checkBirthTime,
+  confidenceWithMemory,
+  fitPastEvent,
+  MIN_PAST_EVENTS,
+  scoreFit,
+} from "./kp-hindcast.ts";
 import {
   judgeKp,
   KP_HOUSES,
@@ -12,11 +25,13 @@ import {
   type Planet,
 } from "./kp-judge.ts";
 import { kpCuspAndPlanetLords } from "./kp-lords.ts";
+import { parseMemory, type Memory } from "./memory.ts";
 import { rulingPlanetsWorkflow } from "./ruling-planets.ts";
 import type { JudgeInput } from "./tool-specs.ts";
 
 const DEFAULT_YEARS = 10;
 const DEFAULT_LIMIT = 5;
+const DEFAULT_RECTIFY_MINUTES = 15;
 const YEAR_MS = 365.25 * 24 * 60 * 60 * 1000;
 
 const iso = (epochMillis: number): string => new Date(epochMillis).toISOString();
@@ -52,17 +67,15 @@ export const kpFactsOf = Effect.fn("Ascendant.kpFactsOf")(function* (chart: Char
   } satisfies KpFacts;
 });
 
-/** The KP judgment for one saved person, one event and one time window. */
-export const judgeWorkflow = Effect.fn("Ascendant.judge")(function* (input: JudgeInput) {
-  const event = findKpEvent(input.event);
-  if (event === undefined) {
-    return yield* Effect.fail(new Error(`Unknown event ${input.event}`));
-  }
-  const person = yield* readStoredPerson(input.name);
-  const birthMoment = Chart.Moment.make({ date: yield* decodeMoment(person.moment) });
+/** KP facts and every antara period of the life, for one birth moment. */
+const kpChartAt = Effect.fn("Ascendant.kpChartAt")(function* (
+  person: StoredPerson,
+  birth: DateTime.Utc,
+) {
+  const moment = Chart.Moment.make({ date: birth });
   const calculation = yield* Chart.generate(
     {
-      moment: birthMoment,
+      moment,
       latitude: person.latitude,
       longitude: person.longitude,
       ...(person.sex !== undefined ? { sex: person.sex } : {}),
@@ -74,16 +87,10 @@ export const judgeWorkflow = Effect.fn("Ascendant.judge")(function* (input: Judg
     return yield* Effect.fail(new Error("KP chart generation returned no D1"));
   }
   const facts = yield* kpFactsOf(d1);
-  const timeline = yield* Dasha.calculate(birthMoment, calculation.placements);
-
-  const from = DateTime.toEpochMillis(yield* decodeMoment(input.from));
-  const to = from + (input.years ?? DEFAULT_YEARS) * YEAR_MS;
-  const overlaps = (period: { readonly start: DateTime.Utc; readonly end: DateTime.Utc }) =>
-    DateTime.toEpochMillis(period.end) > from && DateTime.toEpochMillis(period.start) < to;
+  const timeline = yield* Dasha.calculate(moment, calculation.placements);
   const periods: ReadonlyArray<KpPeriod> = timeline
-    .filter(overlaps)
-    .flatMap((mahadasha) => mahadasha.antardashas.filter(overlaps))
-    .flatMap((antardasha) => Dasha.pratyantardashas(antardasha).filter(overlaps))
+    .flatMap((mahadasha) => mahadasha.antardashas)
+    .flatMap((antardasha) => Dasha.pratyantardashas(antardasha))
     .map((antara) => ({
       dasha: antara.mahadasha,
       bhukti: antara.antardasha,
@@ -91,6 +98,66 @@ export const judgeWorkflow = Effect.fn("Ascendant.judge")(function* (input: Judg
       start: DateTime.toEpochMillis(antara.start),
       end: DateTime.toEpochMillis(antara.end),
     }));
+  return { facts, periods };
+});
+
+const NO_MEMORY: Memory = { events: [], ignored: [] };
+
+/** The person's `MEMORY.md`; a missing file is an empty memory. */
+const readMemory = Effect.fn("Ascendant.readMemory")(function* (name: string) {
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  const file = path.join("persons", name, "MEMORY.md");
+  const found = yield* fs.exists(file);
+  return {
+    file: `persons/${name}/MEMORY.md`,
+    found,
+    memory: found ? parseMemory(yield* fs.readFileString(file)) : NO_MEMORY,
+  };
+});
+
+/**
+ * The KP judgment for one saved person, one event and one time window. It is a
+ * function of the birth data, the input and the tagged events in `MEMORY.md`:
+ * the same three always give the same judgment.
+ */
+export const judgeWorkflow = Effect.fn("Ascendant.judge")(function* (input: JudgeInput) {
+  const event = findKpEvent(input.event);
+  if (event === undefined) {
+    return yield* Effect.fail(new Error(`Unknown event ${input.event}`));
+  }
+  const person = yield* readStoredPerson(input.name);
+  const birth = yield* decodeMoment(person.moment);
+  const recorded = yield* kpChartAt(person, birth);
+
+  const from = DateTime.toEpochMillis(yield* decodeMoment(input.from));
+  const to = from + (input.years ?? DEFAULT_YEARS) * YEAR_MS;
+
+  const stored = (input.useMemory ?? true) ? yield* readMemory(person.name) : undefined;
+  const past = stored?.memory.events ?? [];
+  const span = { from: DateTime.toEpochMillis(birth), to: from };
+  const fits = past.map((entry) => fitPastEvent(recorded.facts, recorded.periods, entry, span));
+
+  const windowMinutes = input.rectifyMinutes ?? DEFAULT_RECTIFY_MINUTES;
+  const offsets =
+    past.length >= MIN_PAST_EVENTS && windowMinutes > 0
+      ? Array.from({ length: 2 * windowMinutes + 1 }, (_, index) => index - windowMinutes)
+      : [];
+  const trials = yield* Effect.forEach(offsets, (offsetMinutes) =>
+    (offsetMinutes === 0
+      ? Effect.succeed(recorded)
+      : kpChartAt(person, DateTime.add(birth, { minutes: offsetMinutes }))
+    ).pipe(
+      Effect.map((chart) => ({
+        offsetMinutes,
+        score: past.reduce(
+          (sum, entry) => sum + scoreFit(fitPastEvent(chart.facts, chart.periods, entry, span)),
+          0,
+        ),
+      })),
+    ),
+  );
+  const birthTime = checkBirthTime(trials, past.length, windowMinutes);
 
   const ruling =
     input.judgmentMoment === undefined
@@ -99,10 +166,11 @@ export const judgeWorkflow = Effect.fn("Ascendant.judge")(function* (input: Judg
   const rulingPlanets =
     ruling === undefined ? undefined : [...new Set<Planet>(ruling.rulingPlanets ?? [])];
 
-  const judgment = judgeKp(facts, event, periods, {
+  const judgment = judgeKp(recorded.facts, event, recorded.periods, {
     from,
     to,
     limit: input.limit ?? DEFAULT_LIMIT,
+    occurred: past.filter((entry) => entry.event.id === event.id).map((entry) => entry.at),
     ...(rulingPlanets !== undefined ? { rulingPlanets } : {}),
   });
 
@@ -122,6 +190,30 @@ export const judgeWorkflow = Effect.fn("Ascendant.judge")(function* (input: Judg
         end: iso(window.end),
       })),
     },
+    confidence:
+      stored === undefined
+        ? judgment.confidence
+        : confidenceWithMemory(judgment.confidence, birthTime, fits),
+    memory:
+      stored === undefined
+        ? { status: "not-used" as const }
+        : {
+            file: stored.file,
+            status: !stored.found
+              ? ("missing" as const)
+              : past.length === 0
+                ? ("empty" as const)
+                : ("used" as const),
+            used: past.map((entry) => ({
+              line: entry.line,
+              date: entry.date,
+              event: entry.event.id,
+              message: entry.message,
+            })),
+            ignored: stored.memory.ignored,
+            hindcast: fits,
+            birthTime,
+          },
   };
 });
 

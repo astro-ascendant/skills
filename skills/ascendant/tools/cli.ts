@@ -117,6 +117,7 @@ const transit = Command.make(
     ),
     summary: Flag.Boolean("summary").pipe(
       Flag.withDescription("Leave out the chart attached to each event (default false)"),
+      Flag.withDefault(false),
     ),
   },
   (flags) =>
@@ -192,6 +193,16 @@ const judge = Command.make(
       Flag.withDescription("Most timing windows to return from 1 to 50 (default 5)"),
       Flag.optional,
     ),
+    rectifyMinutes: Flag.Finite("rectify-minutes").pipe(
+      Flag.withDescription(
+        "Minutes either side of the birth time to test against past events (default 15, 0 is off)",
+      ),
+      Flag.optional,
+    ),
+    ignoreMemory: Flag.Boolean("ignore-memory").pipe(
+      Flag.withDescription("Ignore the past events in MEMORY.md (default false)"),
+      Flag.withDefault(false),
+    ),
     judgmentMoment: Flag.String("judgment-moment").pipe(
       Flag.withDescription(
         "Moment whose ruling planets select significators; leave out to judge without them",
@@ -199,11 +210,13 @@ const judge = Command.make(
       Flag.optional,
     ),
   },
-  (flags) =>
+  ({ ignoreMemory, ...flags }) =>
     emit(
-      decodeInput(Judge.parametersSchema, compact(flags), JUDGE_HELP).pipe(
-        Effect.flatMap(handlers.ascendant_judge),
-      ),
+      decodeInput(
+        Judge.parametersSchema,
+        { ...compact(flags), useMemory: !ignoreMemory },
+        JUDGE_HELP,
+      ).pipe(Effect.flatMap(handlers.ascendant_judge)),
     ),
 ).pipe(
   Command.withDescription("Judge one event by KP rules: promise, significators and timing"),

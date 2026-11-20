@@ -131,6 +131,22 @@ export const JudgeInput = Schema.Struct({
       Schema.annotate({ description: "Most timing windows to return (default 5)" }),
     ),
   ),
+  useMemory: Schema.optional(
+    Schema.Boolean.pipe(
+      Schema.annotate({
+        description: "Use the tagged past events in the person's MEMORY.md (default true)",
+      }),
+    ),
+  ),
+  rectifyMinutes: Schema.optional(
+    Schema.Finite.pipe(
+      Schema.check(Schema.isBetween({ minimum: 0, maximum: 60 })),
+      Schema.annotate({
+        description:
+          "Minutes either side of the recorded birth time to test against past events (default 15, 0 switches the check off)",
+      }),
+    ),
+  ),
   judgmentMoment: Schema.optional(
     OffsetMoment.pipe(
       Schema.annotate({
@@ -165,7 +181,7 @@ export const toolSpecs = {
   judge: {
     name: "ascendant_judge",
     description:
-      "Judge one event for a saved person by KP rules: promise, ranked significators and timing windows. Same input, same judgment.",
+      "Judge one event for a saved person by KP rules: promise, ranked significators and timing windows, checked against the tagged past events in MEMORY.md. Same input and memory, same judgment.",
     parameters: JudgeInput,
   },
 } as const;

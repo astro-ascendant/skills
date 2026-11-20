@@ -78,7 +78,11 @@ On a writable person record, read `persons/<name>/MEMORY.md` before analysis
 and keep the birth header immutable. Collect candidate events as
 `- [DD/MM/YYYY]: {message}` oldest-first during the task; show Pending MEMORY
 at the end and write only after an explicit user yes. Past dated events only,
-never predictions. On a read-only attachment, state new facts in the answer
+never predictions. When the event matches an id listed by
+`bash "<skill-dir>/scripts/ascendant.sh" events`, tag it:
+`- [DD/MM/YYYY] #<event-id>: {message}` (for example
+`- [20/02/2019] #marriage: Married in Chennai`). The judge reads only tagged
+lines; an untagged line stays a note. Never invent an id. On a read-only attachment, state new facts in the answer
 and never write.
 
 ## Readings

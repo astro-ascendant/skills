@@ -23,7 +23,7 @@ Import from `../../.ascendant-agent/tools/api.ts`. Every function takes the same
 | `addPerson` | `name`, `moment`, `latitude`, `longitude`, `sex?` | Same as `add-person.sh` |
 | `checkTransit` | `name`, `moment`, `planet`, `school?`, `direction?`, `kinds?` (array), `count?`, `targetLongitude?`, `house?`, `maxYears?`, `precisionMinutes?`, `summary?` | Same as `check-transit.sh` |
 | `rulingPlanets` | `moment`, `name?`, `latitude?`, `longitude?` | Same as `ruling-planets.sh` |
-| `judge` | `name`, `event`, `from`, `years?`, `limit?`, `judgmentMoment?` | Same as `judge.sh` |
+| `judge` | `name`, `event`, `from`, `years?`, `limit?`, `judgmentMoment?`, `useMemory?`, `rectifyMinutes?` | Same as `judge.sh` |
 | `events` | none | Event ids `judge` accepts |
 | `home` | none | Saved people |
 | `main(program)` | an `Effect` | Prints its result and exits with its failure code |

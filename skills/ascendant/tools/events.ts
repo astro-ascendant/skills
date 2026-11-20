@@ -823,6 +823,19 @@ export type KpEventId = (typeof KP_EVENTS)[number]["id"];
 
 export const KP_EVENT_IDS = KP_EVENTS.map((event) => event.id) as [KpEventId, ...Array<KpEventId>];
 
+/**
+ * Events that happen once in a life. When `MEMORY.md` records one, the judge
+ * stops offering windows for it. Engine choice: the guidebook does not say
+ * which events repeat, so only the unambiguous ones are listed.
+ */
+export const ONCE_ONLY_KP_EVENTS: ReadonlySet<string> = new Set<KpEventId>([
+  "marriage",
+  "love-marriage",
+  "second-marriage",
+  "second-child",
+  "third-child",
+]);
+
 export function findKpEvent(id: string): KpEvent | undefined {
   return KP_EVENTS.find((event) => event.id === id);
 }

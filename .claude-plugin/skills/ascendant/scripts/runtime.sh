@@ -53,6 +53,8 @@ cp "${SKILL_DIR}/tools/api.ts" \
   "${SKILL_DIR}/tools/events.ts" \
   "${SKILL_DIR}/tools/kp-judge.ts" \
   "${SKILL_DIR}/tools/judge.ts" \
+  "${SKILL_DIR}/tools/kp-hindcast.ts" \
+  "${SKILL_DIR}/tools/memory.ts" \
   "${SKILL_DIR}/tools/add-person.ts" \
   "${SKILL_DIR}/tools/kp-lords.ts" \
   "${SKILL_DIR}/tools/markdown.ts" \

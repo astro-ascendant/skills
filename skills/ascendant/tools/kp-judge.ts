@@ -1,6 +1,6 @@
 import { Chart } from "astro-ascendant";
 
-import type { House, KpEvent } from "./events.ts";
+import { ONCE_ONLY_KP_EVENTS, type House, type KpEvent } from "./events.ts";
 
 /**
  * The KP judgment as pure functions: the same facts, event and window always
@@ -9,7 +9,7 @@ import type { House, KpEvent } from "./events.ts";
  * silent and this file had to choose is marked "Engine choice".
  */
 
-export const KP_JUDGE_VERSION = "kp-judge/1";
+export const KP_JUDGE_VERSION = "kp-judge/2";
 
 export type Planet = Chart.Planets;
 
@@ -52,6 +52,8 @@ export interface JudgeOptions {
   readonly limit: number;
   /** Ruling planets of the judgment moment, when the caller supplies one. */
   readonly rulingPlanets?: ReadonlyArray<Planet>;
+  /** Moments, epoch milliseconds, at which this event is recorded as having happened. */
+  readonly occurred?: ReadonlyArray<number>;
 }
 
 export type Level = 1 | 2 | 3 | 4;
@@ -366,7 +368,7 @@ export interface Window {
   readonly end: number;
 }
 
-export type TimingStatus = "windows" | "no-conjoined-period" | "skipped";
+export type TimingStatus = "windows" | "no-conjoined-period" | "skipped" | "already-occurred";
 
 export interface Timing {
   readonly status: TimingStatus;
@@ -507,7 +509,7 @@ export function judgeKp(
   const group = houseGroup(event);
   const promise = judgePromise(facts, event, group);
   const significators = rankSignificators(facts, group, options.rulingPlanets);
-  const timing: Timing =
+  const timed: Timing =
     promise.verdict === "denied" || promise.verdict === "not-indicated"
       ? {
           status: "skipped",
@@ -523,6 +525,22 @@ export function judgeKp(
           ],
         }
       : timeEvent(significators, periods, options);
+  const timing: Timing =
+    ONCE_ONLY_KP_EVENTS.has(event.id) && (options.occurred?.length ?? 0) > 0
+      ? {
+          status: "already-occurred",
+          windows: [],
+          found: 0,
+          rules: [
+            {
+              rule: "timing.already-occurred",
+              source: "engine",
+              polarity: "neutral",
+              detail: "The person's memory records this once-only event, so no window is offered",
+            },
+          ],
+        }
+      : timed;
 
   return {
     school: "KP",

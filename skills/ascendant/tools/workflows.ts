@@ -28,7 +28,7 @@ export const TRANSIT_HELP =
 export const RULING_PLANETS_HELP =
   'Run `ascendant ruling-planets --moment "<ISO-8601>" (--name "<name>" | --latitude <latitude> --longitude <longitude>)`';
 export const JUDGE_HELP =
-  'Run `ascendant judge --name "<name>" --event <event-id> --from "<ISO-8601>" [--years <1-60>] [--limit <1-50>] [--judgment-moment "<ISO-8601>"]`; list event ids with `ascendant events`';
+  'Run `ascendant judge --name "<name>" --event <event-id> --from "<ISO-8601>" [--years <1-60>] [--limit <1-50>] [--judgment-moment "<ISO-8601>"] [--rectify-minutes <0-60>] [--ignore-memory]`; list event ids with `ascendant events`';
 
 const KpLayer = Layer.mergeAll(PlatformLayer, KpAstroParamsLayer, Swisseph.SwissephLayer);
 
