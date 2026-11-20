@@ -1,38 +1,25 @@
 import { Chart } from "astro-ascendant";
+import { Array as Arr, HashSet, type Option, Schema } from "effect";
 
-/**
- * KP house groups as data, one entry per row of
- * `references/kp/house-grouping.md`. `tests/ascendant/kp-events.test.ts`
- * fails when this file and the guidebook disagree, so edit both together.
- *
- * `supporting` is the guidebook's column as written (it sometimes repeats the
- * primary house). `optional` holds the houses the guidebook puts in
- * parentheses; it does not say what they mean, so the judge reports them and
- * counts them neither for nor against the matter.
- */
+export const House = Chart.Houses;
+export type House = typeof House.Type;
 
-export type House = (typeof Chart.Houses.literals)[number];
+export const KpEvent = Schema.Struct({
+  id: Schema.String,
+  label: Schema.String,
+  section: Schema.String,
+  primary: House,
+  supporting: Schema.Array(House),
+  parenthesised: Schema.Array(House),
+});
+export interface KpEvent extends Schema.Schema.Type<typeof KpEvent> {}
 
-export interface KpEvent {
-  readonly id: string;
-  readonly label: string;
-  /** Heading in house-grouping.md that holds the row. */
-  readonly section: string;
-  readonly primary: House;
-  readonly supporting: ReadonlyArray<House>;
-  readonly optional: ReadonlyArray<House>;
-}
-
-/**
- * Guidebook rows the judge refuses. `safety`: SKILL.md rejects death, serious
- * accident and severe illness judgments. `non-numeric`: the row names
- * something other than fixed houses (Badhaka, an involved cusp, an either-or).
- */
-export interface ExcludedKpEvent {
-  readonly label: string;
-  readonly primary: House;
-  readonly reason: "safety" | "non-numeric";
-}
+export const ExcludedKpEvent = Schema.Struct({
+  label: Schema.String,
+  primary: House,
+  reason: Schema.Literals(["safety", "non-numeric"]),
+});
+export interface ExcludedKpEvent extends Schema.Schema.Type<typeof ExcludedKpEvent> {}
 
 export const KP_EVENTS = [
   {
@@ -41,7 +28,7 @@ export const KP_EVENTS = [
     section: "Events relating First House",
     primary: 1,
     supporting: [1, 11],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "success-in-self-efforts",
@@ -49,7 +36,7 @@ export const KP_EVENTS = [
     section: "Events relating First House",
     primary: 1,
     supporting: [11],
-    optional: [6],
+    parenthesised: [6],
   },
   {
     id: "status-and-respect",
@@ -57,7 +44,7 @@ export const KP_EVENTS = [
     section: "Events relating First House",
     primary: 1,
     supporting: [10, 11],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "financial-status",
@@ -65,7 +52,7 @@ export const KP_EVENTS = [
     section: "Events relating Second House",
     primary: 2,
     supporting: [2, 6, 11],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "obtaining-loans",
@@ -73,7 +60,7 @@ export const KP_EVENTS = [
     section: "Events relating Second House",
     primary: 2,
     supporting: [11],
-    optional: [6],
+    parenthesised: [6],
   },
   {
     id: "obtaining-jewellery",
@@ -81,7 +68,7 @@ export const KP_EVENTS = [
     section: "Events relating Second House",
     primary: 2,
     supporting: [11],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "defect-in-speech-vision",
@@ -89,7 +76,7 @@ export const KP_EVENTS = [
     section: "Events relating Second House",
     primary: 2,
     supporting: [12, 8],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "insurance-claims",
@@ -97,7 +84,7 @@ export const KP_EVENTS = [
     section: "Events relating Second House",
     primary: 2,
     supporting: [8, 11],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "medical-claims",
@@ -105,7 +92,7 @@ export const KP_EVENTS = [
     section: "Events relating Second House",
     primary: 2,
     supporting: [6, 8, 11],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "opening-bank-account",
@@ -113,7 +100,7 @@ export const KP_EVENTS = [
     section: "Events relating Second House",
     primary: 2,
     supporting: [6, 11],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "signing-a-contract",
@@ -121,7 +108,7 @@ export const KP_EVENTS = [
     section: "Events relating Third House",
     primary: 3,
     supporting: [6, 9, 11],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "meeting-bank-officer-for-overdraft",
@@ -129,7 +116,7 @@ export const KP_EVENTS = [
     section: "Events relating Third House",
     primary: 3,
     supporting: [6, 9, 11],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "filing-a-court-case",
@@ -137,7 +124,7 @@ export const KP_EVENTS = [
     section: "Events relating Third House",
     primary: 3,
     supporting: [6, 11],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "getting-passport-green-card-visa",
@@ -145,7 +132,7 @@ export const KP_EVENTS = [
     section: "Events relating Third House",
     primary: 3,
     supporting: [9, 11, 12],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "starting-journey",
@@ -153,7 +140,7 @@ export const KP_EVENTS = [
     section: "Events relating Third House",
     primary: 3,
     supporting: [5, 9, 11],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "change-of-place-transfer",
@@ -161,7 +148,7 @@ export const KP_EVENTS = [
     section: "Events relating Third House",
     primary: 3,
     supporting: [10, 11],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "computer-programmer-h3",
@@ -169,7 +156,7 @@ export const KP_EVENTS = [
     section: "Events relating Third House",
     primary: 3,
     supporting: [2, 11],
-    optional: [10],
+    parenthesised: [10],
   },
   {
     id: "publication-as-profession",
@@ -177,7 +164,7 @@ export const KP_EVENTS = [
     section: "Events relating Third House",
     primary: 3,
     supporting: [2, 11],
-    optional: [10],
+    parenthesised: [10],
   },
   {
     id: "basic-education",
@@ -185,7 +172,7 @@ export const KP_EVENTS = [
     section: "Events relating Fourth House",
     primary: 4,
     supporting: [11],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "purchase-of-property-vehicle-furniture",
@@ -193,7 +180,7 @@ export const KP_EVENTS = [
     section: "Events relating Fourth House",
     primary: 4,
     supporting: [11, 12],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "sale-of-property-etc",
@@ -201,7 +188,7 @@ export const KP_EVENTS = [
     section: "Events relating Fourth House",
     primary: 4,
     supporting: [3, 5, 10],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "taking-possession-of-flat-quarter-etc",
@@ -209,7 +196,7 @@ export const KP_EVENTS = [
     section: "Events relating Fourth House",
     primary: 4,
     supporting: [9, 11],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "laying-foundation-of-a-house",
@@ -217,7 +204,7 @@ export const KP_EVENTS = [
     section: "Events relating Fourth House",
     primary: 4,
     supporting: [11],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "occupying-a-new-house",
@@ -225,7 +212,7 @@ export const KP_EVENTS = [
     section: "Events relating Fourth House",
     primary: 4,
     supporting: [11],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "engineering-as-subject-of-study",
@@ -233,7 +220,7 @@ export const KP_EVENTS = [
     section: "Events relating Fourth House",
     primary: 4,
     supporting: [10],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "medicine-as-subject-of-study",
@@ -241,7 +228,7 @@ export const KP_EVENTS = [
     section: "Events relating Fourth House",
     primary: 4,
     supporting: [6],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "fine-arts-as-subject-of-study",
@@ -249,7 +236,7 @@ export const KP_EVENTS = [
     section: "Events relating Fourth House",
     primary: 4,
     supporting: [5],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "teaching-as-profession-h4",
@@ -257,7 +244,7 @@ export const KP_EVENTS = [
     section: "Events relating Fourth House",
     primary: 4,
     supporting: [2, 6, 10],
-    optional: [9],
+    parenthesised: [9],
   },
   {
     id: "child-birth",
@@ -265,7 +252,7 @@ export const KP_EVENTS = [
     section: "Events relating Fifth House",
     primary: 5,
     supporting: [2, 11],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "pregnancy",
@@ -273,7 +260,7 @@ export const KP_EVENTS = [
     section: "Events relating Fifth House",
     primary: 5,
     supporting: [2, 11],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "love-marriage",
@@ -281,7 +268,7 @@ export const KP_EVENTS = [
     section: "Events relating Fifth House",
     primary: 5,
     supporting: [7, 11],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "success-in-sports",
@@ -289,7 +276,7 @@ export const KP_EVENTS = [
     section: "Events relating Fifth House",
     primary: 5,
     supporting: [6, 11],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "sports-fine-arts-film-speculation-as-profession",
@@ -297,7 +284,7 @@ export const KP_EVENTS = [
     section: "Events relating Fifth House",
     primary: 5,
     supporting: [2, 11],
-    optional: [10],
+    parenthesised: [10],
   },
   {
     id: "caesarean",
@@ -305,7 +292,7 @@ export const KP_EVENTS = [
     section: "Events relating Fifth House",
     primary: 5,
     supporting: [2, 8],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "promise-of-loan",
@@ -313,7 +300,7 @@ export const KP_EVENTS = [
     section: "Events relating Sixth House",
     primary: 6,
     supporting: [2, 11],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "secret-activities-of-partner",
@@ -321,7 +308,7 @@ export const KP_EVENTS = [
     section: "Events relating Sixth House",
     primary: 6,
     supporting: [5],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "success-in-competition",
@@ -329,7 +316,7 @@ export const KP_EVENTS = [
     section: "Events relating Sixth House",
     primary: 6,
     supporting: [1, 11],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "success-in-litigation",
@@ -337,7 +324,7 @@ export const KP_EVENTS = [
     section: "Events relating Sixth House",
     primary: 6,
     supporting: [1, 11],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "recovery-from-disease",
@@ -345,7 +332,7 @@ export const KP_EVENTS = [
     section: "Events relating Sixth House",
     primary: 6,
     supporting: [5, 11],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "medical-practitioner-h6",
@@ -353,7 +340,7 @@ export const KP_EVENTS = [
     section: "Events relating Sixth House",
     primary: 6,
     supporting: [2, 11],
-    optional: [10],
+    parenthesised: [10],
   },
   {
     id: "legal-profession-h6",
@@ -361,7 +348,7 @@ export const KP_EVENTS = [
     section: "Events relating Sixth House",
     primary: 6,
     supporting: [2, 11],
-    optional: [9, 10],
+    parenthesised: [9, 10],
   },
   {
     id: "marriage",
@@ -369,7 +356,7 @@ export const KP_EVENTS = [
     section: "Events relating Seventh House",
     primary: 7,
     supporting: [2, 11],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "second-child",
@@ -377,7 +364,7 @@ export const KP_EVENTS = [
     section: "Events relating Seventh House",
     primary: 7,
     supporting: [2, 11],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "partnership",
@@ -385,7 +372,7 @@ export const KP_EVENTS = [
     section: "Events relating Seventh House",
     primary: 7,
     supporting: [5, 11],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "theft",
@@ -393,7 +380,7 @@ export const KP_EVENTS = [
     section: "Events relating Seventh House",
     primary: 7,
     supporting: [2, 12],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "danger-from-opponents",
@@ -401,7 +388,7 @@ export const KP_EVENTS = [
     section: "Events relating Seventh House",
     primary: 7,
     supporting: [8, 12],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "loans-from-bank",
@@ -409,7 +396,7 @@ export const KP_EVENTS = [
     section: "Events relating Seventh House",
     primary: 7,
     supporting: [6, 2, 11],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "marriage-engagement",
@@ -417,7 +404,7 @@ export const KP_EVENTS = [
     section: "Events relating Seventh House",
     primary: 7,
     supporting: [3, 9, 11],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "criminality-as-profession",
@@ -425,7 +412,7 @@ export const KP_EVENTS = [
     section: "Events relating Eighth House",
     primary: 8,
     supporting: [2, 11],
-    optional: [10],
+    parenthesised: [10],
   },
   {
     id: "unexpected-gains",
@@ -433,7 +420,7 @@ export const KP_EVENTS = [
     section: "Events relating Eighth House",
     primary: 8,
     supporting: [2, 11],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "unexpected-loss",
@@ -441,7 +428,7 @@ export const KP_EVENTS = [
     section: "Events relating Eighth House",
     primary: 8,
     supporting: [5, 12],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "receipt-of-gifts",
@@ -449,7 +436,7 @@ export const KP_EVENTS = [
     section: "Events relating Eighth House",
     primary: 8,
     supporting: [6, 11],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "ornaments-or-cash-from-inheritance",
@@ -457,7 +444,7 @@ export const KP_EVENTS = [
     section: "Events relating Eighth House",
     primary: 8,
     supporting: [2, 11],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "property-vehicle-from-inheritance",
@@ -465,7 +452,7 @@ export const KP_EVENTS = [
     section: "Events relating Eighth House",
     primary: 8,
     supporting: [4, 11],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "recovery-of-lost-articles",
@@ -473,7 +460,7 @@ export const KP_EVENTS = [
     section: "Events relating Eighth House",
     primary: 8,
     supporting: [2, 6, 11],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "surgeons",
@@ -481,7 +468,7 @@ export const KP_EVENTS = [
     section: "Events relating Eighth House",
     primary: 8,
     supporting: [2, 11],
-    optional: [10],
+    parenthesised: [10],
   },
   {
     id: "long-journeys",
@@ -489,7 +476,7 @@ export const KP_EVENTS = [
     section: "Events relating Ninth House",
     primary: 9,
     supporting: [3, 12],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "higher-education",
@@ -497,7 +484,7 @@ export const KP_EVENTS = [
     section: "Events relating Ninth House",
     primary: 9,
     supporting: [11],
-    optional: [4],
+    parenthesised: [4],
   },
   {
     id: "second-marriage",
@@ -505,7 +492,7 @@ export const KP_EVENTS = [
     section: "Events relating Ninth House",
     primary: 9,
     supporting: [7, 11],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "third-child",
@@ -513,7 +500,7 @@ export const KP_EVENTS = [
     section: "Events relating Ninth House",
     primary: 9,
     supporting: [2, 11],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "success-in-spiritual-discipline",
@@ -521,7 +508,7 @@ export const KP_EVENTS = [
     section: "Events relating Ninth House",
     primary: 9,
     supporting: [6, 11],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "politics-as-profession-h9",
@@ -529,7 +516,7 @@ export const KP_EVENTS = [
     section: "Events relating Ninth House",
     primary: 9,
     supporting: [2, 6, 11],
-    optional: [10],
+    parenthesised: [10],
   },
   {
     id: "service-or-business",
@@ -537,7 +524,7 @@ export const KP_EVENTS = [
     section: "Events relating Tenth House",
     primary: 10,
     supporting: [6, 7],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "commission-as-business",
@@ -545,7 +532,7 @@ export const KP_EVENTS = [
     section: "Events relating Tenth House",
     primary: 10,
     supporting: [3, 11],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "name-and-fame",
@@ -553,7 +540,7 @@ export const KP_EVENTS = [
     section: "Events relating Tenth House",
     primary: 10,
     supporting: [1, 11],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "retirement",
@@ -561,7 +548,7 @@ export const KP_EVENTS = [
     section: "Events relating Tenth House",
     primary: 10,
     supporting: [5, 9],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "promotion-in-service-or-business",
@@ -569,7 +556,7 @@ export const KP_EVENTS = [
     section: "Events relating Tenth House",
     primary: 10,
     supporting: [2, 6, 11],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "break-in-service",
@@ -577,7 +564,7 @@ export const KP_EVENTS = [
     section: "Events relating Tenth House",
     primary: 10,
     supporting: [5, 9],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "problems-in-business-or-service",
@@ -585,7 +572,7 @@ export const KP_EVENTS = [
     section: "Events relating Tenth House",
     primary: 10,
     supporting: [5, 8],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "suspension-in-service",
@@ -593,7 +580,7 @@ export const KP_EVENTS = [
     section: "Events relating Tenth House",
     primary: 10,
     supporting: [5, 6],
-    optional: [8],
+    parenthesised: [8],
   },
   {
     id: "compulsory-retirement",
@@ -601,7 +588,7 @@ export const KP_EVENTS = [
     section: "Events relating Tenth House",
     primary: 10,
     supporting: [5, 9],
-    optional: [8],
+    parenthesised: [8],
   },
   {
     id: "voluntary-retirement",
@@ -609,7 +596,7 @@ export const KP_EVENTS = [
     section: "Events relating Tenth House",
     primary: 10,
     supporting: [1, 5, 9],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "removal-from-service",
@@ -617,7 +604,7 @@ export const KP_EVENTS = [
     section: "Events relating Tenth House",
     primary: 10,
     supporting: [5, 9],
-    optional: [8],
+    parenthesised: [8],
   },
   {
     id: "export-business-h10",
@@ -625,7 +612,7 @@ export const KP_EVENTS = [
     section: "Events relating Tenth House",
     primary: 10,
     supporting: [2, 6, 11],
-    optional: [12],
+    parenthesised: [12],
   },
   {
     id: "medical-practitioner-h10",
@@ -633,7 +620,7 @@ export const KP_EVENTS = [
     section: "Events relating Tenth House",
     primary: 10,
     supporting: [2, 6, 11],
-    optional: [8],
+    parenthesised: [8],
   },
   {
     id: "publications-as-profession",
@@ -641,7 +628,7 @@ export const KP_EVENTS = [
     section: "Events relating Tenth House",
     primary: 10,
     supporting: [2, 6, 11],
-    optional: [3],
+    parenthesised: [3],
   },
   {
     id: "legal-profession-h10",
@@ -649,7 +636,7 @@ export const KP_EVENTS = [
     section: "Events relating Tenth House",
     primary: 10,
     supporting: [2, 6, 11],
-    optional: [9],
+    parenthesised: [9],
   },
   {
     id: "politics-as-profession-h10",
@@ -657,7 +644,7 @@ export const KP_EVENTS = [
     section: "Events relating Tenth House",
     primary: 10,
     supporting: [2, 6, 11],
-    optional: [9],
+    parenthesised: [9],
   },
   {
     id: "teaching-as-profession-h10",
@@ -665,7 +652,7 @@ export const KP_EVENTS = [
     section: "Events relating Tenth House",
     primary: 10,
     supporting: [2, 6, 11],
-    optional: [4, 9],
+    parenthesised: [4, 9],
   },
   {
     id: "computer-programmer-h10",
@@ -673,7 +660,7 @@ export const KP_EVENTS = [
     section: "Events relating Tenth House",
     primary: 10,
     supporting: [2, 6, 11],
-    optional: [3],
+    parenthesised: [3],
   },
   {
     id: "winning-in-love",
@@ -681,7 +668,7 @@ export const KP_EVENTS = [
     section: "Events relating Eleventh House",
     primary: 11,
     supporting: [5, 7],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "satisfaction-of-desires",
@@ -689,7 +676,7 @@ export const KP_EVENTS = [
     section: "Events relating Eleventh House",
     primary: 11,
     supporting: [1],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "sexual-relationship-with-friend",
@@ -697,7 +684,7 @@ export const KP_EVENTS = [
     section: "Events relating Eleventh House",
     primary: 11,
     supporting: [7, 5],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "repayment-of-loan",
@@ -705,7 +692,7 @@ export const KP_EVENTS = [
     section: "Events relating Twelfth House",
     primary: 12,
     supporting: [5, 8],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "recovery-of-lost-article",
@@ -713,7 +700,7 @@ export const KP_EVENTS = [
     section: "Events relating Twelfth House",
     primary: 12,
     supporting: [2, 6, 11],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "secret-activities-as-profession",
@@ -721,7 +708,7 @@ export const KP_EVENTS = [
     section: "Events relating Twelfth House",
     primary: 12,
     supporting: [2, 11],
-    optional: [10],
+    parenthesised: [10],
   },
   {
     id: "gain-in-investment",
@@ -729,7 +716,7 @@ export const KP_EVENTS = [
     section: "Events relating Twelfth House",
     primary: 12,
     supporting: [2, 6, 11],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "loss-in-investment",
@@ -737,7 +724,7 @@ export const KP_EVENTS = [
     section: "Events relating Twelfth House",
     primary: 12,
     supporting: [5, 8],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "danger-from-involvement-in-secret-activities",
@@ -745,7 +732,7 @@ export const KP_EVENTS = [
     section: "Events relating Twelfth House",
     primary: 12,
     supporting: [7, 8],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "imprisonment",
@@ -753,7 +740,7 @@ export const KP_EVENTS = [
     section: "Events relating Twelfth House",
     primary: 12,
     supporting: [3, 8],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "receipt-of-secret-documents",
@@ -761,7 +748,7 @@ export const KP_EVENTS = [
     section: "Events relating Twelfth House",
     primary: 12,
     supporting: [4, 11],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "absconding",
@@ -769,7 +756,7 @@ export const KP_EVENTS = [
     section: "Events relating Twelfth House",
     primary: 12,
     supporting: [3, 8],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "success-in-research",
@@ -777,7 +764,7 @@ export const KP_EVENTS = [
     section: "Events relating Twelfth House",
     primary: 12,
     supporting: [6, 11],
-    optional: [],
+    parenthesised: [],
   },
   {
     id: "export-business-h12",
@@ -785,7 +772,7 @@ export const KP_EVENTS = [
     section: "Events relating Twelfth House",
     primary: 12,
     supporting: [2, 11],
-    optional: [10],
+    parenthesised: [10],
   },
   {
     id: "foreign-travel",
@@ -793,7 +780,7 @@ export const KP_EVENTS = [
     section: "Events relating Twelfth House",
     primary: 12,
     supporting: [3, 9],
-    optional: [],
+    parenthesised: [],
   },
 ] as const satisfies ReadonlyArray<KpEvent>;
 
@@ -821,21 +808,19 @@ export const EXCLUDED_KP_EVENTS = [
 
 export type KpEventId = (typeof KP_EVENTS)[number]["id"];
 
-export const KP_EVENT_IDS = KP_EVENTS.map((event) => event.id) as [KpEventId, ...Array<KpEventId>];
+export const KP_EVENT_IDS = Arr.map(KP_EVENTS, (event): KpEventId => event.id);
 
-/**
- * Events that happen once in a life. When `MEMORY.md` records one, the judge
- * stops offering windows for it. Engine choice: the guidebook does not say
- * which events repeat, so only the unambiguous ones are listed.
- */
-export const ONCE_ONLY_KP_EVENTS: ReadonlySet<string> = new Set<KpEventId>([
+export const KpEventId = Schema.Literals(KP_EVENT_IDS);
+
+const ONCE_ONLY_KP_EVENTS: HashSet.HashSet<string> = HashSet.make<ReadonlyArray<KpEventId>>(
   "marriage",
   "love-marriage",
   "second-marriage",
   "second-child",
   "third-child",
-]);
+);
 
-export function findKpEvent(id: string): KpEvent | undefined {
-  return KP_EVENTS.find((event) => event.id === id);
-}
+export const isOnceOnly = (event: KpEvent): boolean => HashSet.has(ONCE_ONLY_KP_EVENTS, event.id);
+
+export const findKpEvent = (id: string): Option.Option<KpEvent> =>
+  Arr.findFirst<KpEvent>(KP_EVENTS, (event) => event.id === id);

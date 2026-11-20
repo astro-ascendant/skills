@@ -36,9 +36,10 @@ function guidebookRows(): ReadonlyArray<Row> {
   return rows;
 }
 
-/** `2,6,11 (9)` as the guidebook writes it, from an event's two house lists. */
-const written = (supporting: ReadonlyArray<number>, optional: ReadonlyArray<number>): string =>
-  optional.length === 0 ? supporting.join(",") : `${supporting.join(",")}(${optional.join(",")})`;
+const written = (supporting: ReadonlyArray<number>, parenthesised: ReadonlyArray<number>): string =>
+  parenthesised.length === 0
+    ? supporting.join(",")
+    : `${supporting.join(",")}(${parenthesised.join(",")})`;
 
 describe("KP event table", () => {
   const rows = guidebookRows();
@@ -70,7 +71,7 @@ describe("KP event table", () => {
       );
       expect([event.id, row?.supporting.replace(/\s/g, "")]).toEqual([
         event.id,
-        written(event.supporting, event.optional),
+        written(event.supporting, event.parenthesised),
       ]);
     }
   });

@@ -15,6 +15,7 @@ Most of the tree is **generated**; only a few directories are hand-authored.
 - `scripts/*.mjs` are the build and verification tools (dependency-free).
 - `packages/ascendant-skills/` is the hand-written `npx ascendant-skills install` CLI, built on `effect/cli` (Node, with `effect`, `@effect/platform-node` and `@effect/platform-node-shared` pinned exactly to 4.1.1). Its command matrix is `lib/plan.mjs` (pure, no Effect), tested by `tests/installer/`. Only its `version` is stamped by `sync-versions`.
 - `UPDATE_ASTRO_ASCENDANT.md` is a hand-written maintenance runbook, not generated.
+- `eval/` is the evaluation harness for the judge (`eval/README.md`). It is not part of the skill payload and never ships. Datasets (`eval/data/`) and reports (`eval/reports/`) are gitignored; the harness tests build their own made-up people.
 
 Generated, committed, never hand-edit (a rebuild overwrites them and CI fails on drift):
 
@@ -34,6 +35,7 @@ bun run typecheck        # two tsc projects: skills/ascendant and .opencode
 bun run lint             # oxlint
 bun run format           # oxfmt, fixed file list; does not touch markdown or packages/
 bun run check:plugin     # import-graph guard; CI runs it, `make build` does NOT
+bun run eval --data eval/data/<name>.jsonl   # score the judge against baselines
 ```
 
 Rebuild after touching any source, then commit the regenerated output in the same change
@@ -49,7 +51,7 @@ bun scripts/build-opencode-plugin.mjs --check  # drift check, builds to a temp d
 
 - `skills/ascendant/tools/*.ts` is the shared engine (Effect + `astro-ascendant`). CLI: `bun skills/ascendant/tools/ascendant.ts <add-person|transit|ruling-planets|judge|events>`.
 - Each tool is defined once in `tool-specs.ts` (plain `effect` Schemas, name, description). `workflows.ts` holds one typed `Effect` per tool (typed input, `CommandError` out). `toolkit.ts` wraps the specs as an `effect/ai` Toolkit; `cli.ts` (`effect/cli`) and `ascendant.ts` are the command line. The OpenCode host does not serve `effect/ai` or `effect/cli`, so the plugin imports only `tool-specs.ts` and `workflows.ts`; `check:plugin` enforces it.
-- `kp-judge.ts` is the deterministic KP judgment (promise, ranked significators, timing windows): pure functions over chart facts, with no clock, file access, or model. `judge.ts` loads a saved person and calls it. `events.ts` holds the house groups from `references/kp/house-grouping.md` as data; `tests/ascendant/kp-events.test.ts` fails when the two disagree, so edit both together. A comment marked `Engine choice` is a rule the guidebook does not state. `memory.ts` parses the tagged events in a person's `MEMORY.md` (`- [DD/MM/YYYY] #<event-id>: message`) and `kp-hindcast.ts` checks the rules and the birth time against them; an empty memory is valid and the judge then works from the chart alone.
+- `kp-judge.ts` is the deterministic KP judgment (promise, ranked significators, timing windows): pure functions over chart facts, with no clock, file access, or model. `judge.ts` loads a saved person and calls it. `events.ts` holds the house groups from `references/kp/house-grouping.md` as data; `tests/ascendant/kp-events.test.ts` fails when the two disagree, so edit both together. A rule the guidebook does not state is an engine choice: it has an id in `EngineChoice` and a one-line statement in `ENGINE_CHOICES` (both in `kp-judge.ts`), the code that applies it is named after the id, and `ascendant events` lists them. Every rule a judgment fires carries a typed `source`: `Guidebook` with file and section, or `Engine` with the choice id. Add a choice there, never as a comment. `memory.ts` parses the tagged events in a person's `MEMORY.md` (`- [DD/MM/YYYY] #<event-id>: message`) and `kp-hindcast.ts` checks the rules and the birth time against them; an empty memory is valid and the judge then works from the chart alone.
 - `.opencode/plugins/ascendant/` imports the engine as `../../../skills/ascendant/tools/*.ts`. `build-opencode-plugin.mjs` rewrites that prefix to `../skills` in the package, so keep the repo-relative form when editing plugin sources.
 - OpenCode registers the skill, the `/ascendant` command, and both tools programmatically. It reads `skills/ascendant/SKILL.md` at runtime, so there is no OpenCode skill copy to regenerate.
 - `skills/ascendant/scripts/ascendant.sh` copies an **explicit allowlist** of tool files into `./.ascendant-agent/` in the user's cwd. Any new file under `tools/` must be added there or the runtime copy will silently miss it.

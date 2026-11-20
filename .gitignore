@@ -51,6 +51,8 @@ sample/
 .zed/
 
 # Personal Information
+eval/data/
+eval/reports/
 persons/
 person/
 .vercel

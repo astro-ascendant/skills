@@ -203,7 +203,6 @@ export const rulingPlanets = Effect.fn("Ascendant.rulingPlanetsTool")(function* 
   );
 });
 
-/** The KP judgment for one saved person, event and time window. */
 export const judge = Effect.fn("Ascendant.judgeTool")(function* (input: JudgeInput) {
   return yield* judgeWorkflow(input).pipe(
     Effect.mapError((error) =>
@@ -217,7 +216,6 @@ export const judge = Effect.fn("Ascendant.judgeTool")(function* (input: JudgeInp
   );
 });
 
-/** Event ids the judge accepts, and the guidebook rows it refuses. */
 export const events = () => Effect.succeed(listEvents());
 
 /** Saved people in `./persons`, with the next commands to try. */

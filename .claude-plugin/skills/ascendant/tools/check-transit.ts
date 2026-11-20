@@ -3,6 +3,7 @@ import { DateTime, Effect, Schema } from "effect";
 
 import {
   calculationContext,
+  ChartIncomplete,
   decodeMoment,
   KpAstroParams,
   makeLocatedMoment,
@@ -93,7 +94,9 @@ export const searchTransits = Effect.fn("Ascendant.searchTransits")(function* (
           const natal = yield* Chart.generate(birth, []);
           const cusp = natal.charts[0]?.houses[natalHouse].cusp;
           if (cusp === undefined) {
-            return yield* Effect.die(new Error("Natal chart returned no cusp for the house"));
+            return yield* new ChartIncomplete({
+              message: "Natal chart returned no cusp for the house",
+            });
           }
           const hits = yield* Transit.findTransits({
             ...search,

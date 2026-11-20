@@ -1,7 +1,7 @@
 import { Chart, Transit } from "astro-ascendant";
 import { Schema } from "effect";
 
-import { KP_EVENT_IDS } from "./events.ts";
+import { KpEventId } from "./events.ts";
 import { Latitude, Longitude, OffsetMoment, PersonName, Sex } from "./contract.ts";
 
 export const AddPersonInput = Schema.Struct({
@@ -109,7 +109,7 @@ export type RulingPlanetsInput = typeof RulingPlanetsInput.Type;
 
 export const JudgeInput = Schema.Struct({
   name: PersonName.pipe(Schema.annotate({ description: "Name of a saved person record" })),
-  event: Schema.Literals(KP_EVENT_IDS).pipe(
+  event: KpEventId.pipe(
     Schema.annotate({
       description: "Event id from the KP house-group table (list them with `ascendant events`)",
     }),

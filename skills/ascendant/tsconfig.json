@@ -16,5 +16,5 @@
     "noUnusedParameters": true,
     "types": ["bun-types"]
   },
-  "include": ["tools/**/*.ts", "../../tests/**/*.ts"]
+  "include": ["tools/**/*.ts", "../../tests/**/*.ts", "../../eval/**/*.ts"]
 }

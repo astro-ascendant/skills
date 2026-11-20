@@ -2,7 +2,7 @@ import { appendFile, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, test } from "bun:test";
-import { Effect, Schema } from "effect";
+import { DateTime, Effect, Option, Schema } from "effect";
 
 import { addPersonFromInput } from "../../skills/ascendant/tools/add-person.ts";
 import {
@@ -27,6 +27,7 @@ import {
   type Confidence,
   type KpFacts,
   type KpPeriod,
+  type Sky,
   type Levels,
   type Planet,
 } from "../../skills/ascendant/tools/kp-judge.ts";
@@ -34,8 +35,8 @@ import { parseMemory } from "../../skills/ascendant/tools/memory.ts";
 import { JudgeInput } from "../../skills/ascendant/tools/tool-specs.ts";
 import { decodeInput, judge } from "../../skills/ascendant/tools/workflows.ts";
 
-const marriage = findKpEvent("marriage");
-if (marriage === undefined) throw new Error("No marriage event");
+const marriage = Option.getOrThrow(findKpEvent("marriage"));
+const at = (epochMillis: number): DateTime.Utc => DateTime.makeUnsafe(epochMillis);
 
 describe("memory parser", () => {
   const text = [
@@ -61,7 +62,10 @@ describe("memory parser", () => {
       [8, "2019-02-20", "marriage", "Married: registry, then ceremony"],
       [6, "2022-11-12", "child-birth", "First child"],
     ]);
-    expect(memory.events[0]?.at).toBe(Date.UTC(2019, 1, 20, 12));
+    expect(memory.events.map((entry) => DateTime.formatIso(entry.noonUtc))).toEqual([
+      "2019-02-20T12:00:00.000Z",
+      "2022-11-12T12:00:00.000Z",
+    ]);
     expect(memory.ignored).toEqual([
       { line: 7, reason: "untagged" },
       { line: 9, reason: "malformed" },
@@ -76,7 +80,6 @@ describe("memory parser", () => {
   });
 });
 
-/** Facts where the listed planets signify house 7 at level 1 and Sun is every cusp's sub lord. */
 function factsWith(significators: ReadonlyArray<Planet>, subLordHouses: ReadonlyArray<House>) {
   const levels = (planet: Planet): Levels<House> => ({
     level1: [
@@ -119,11 +122,11 @@ function factsWith(significators: ReadonlyArray<Planet>, subLordHouses: Readonly
 }
 
 const periods: ReadonlyArray<KpPeriod> = [
-  { dasha: "Moon", bhukti: "Moon", antara: "Mars", start: 0, end: 100 },
-  { dasha: "Moon", bhukti: "Moon", antara: "Saturn", start: 100, end: 400 },
+  { dasha: "Moon", bhukti: "Moon", antara: "Mars", start: at(0), end: at(100) },
+  { dasha: "Moon", bhukti: "Moon", antara: "Saturn", start: at(100), end: at(400) },
 ];
-const span = { from: 0, to: 400 };
-const past = (at: number) => ({ date: "2000-01-01", at, event: marriage });
+const span = { from: at(0), to: at(400) };
+const past = (millis: number) => ({ date: "2000-01-01", noonUtc: at(millis), event: marriage });
 
 describe("hindcast", () => {
   const facts = factsWith(["Moon", "Mars"], [7]);
@@ -136,7 +139,7 @@ describe("hindcast", () => {
       verdict: "promised",
       inConjoinedPeriod: true,
       lords: ["Moon", "Moon", "Mars"],
-      coverage: 0.25,
+      conjoinedShareOfLife: 0.25,
     });
     expect(scoreFit(fit)).toBe(2);
   });
@@ -151,7 +154,7 @@ describe("hindcast", () => {
 
   test("coverage is the share of the span the conjoined periods fill", () => {
     const all = factsWith(["Moon", "Mars", "Saturn"], [7]);
-    expect(fitPastEvent(all, periods, past(50), span).coverage).toBe(1);
+    expect(fitPastEvent(all, periods, past(50), span).conjoinedShareOfLife).toBe(1);
   });
 });
 
@@ -174,24 +177,24 @@ describe("birth-time check", () => {
   test("recorded moment among the best: consistent", () => {
     expect(checkBirthTime(trials([2, 6, 6, 3, 1]), 3, 2)).toMatchObject({
       status: "consistent",
-      recordedScore: 6,
-      bestScore: 6,
-      bestOffsets: [-1, 0],
+      recordedScore: Option.some(6),
+      bestScore: Option.some(6),
+      bestOffsets: Option.some([-1, 0]),
     });
   });
 
   test("one better trial: suspect with a provisional offset", () => {
     expect(checkBirthTime(trials([2, 3, 4, 6, 1]), 3, 2)).toMatchObject({
       status: "suspect",
-      provisionalOffsetMinutes: 1,
+      provisionalOffsetMinutes: Option.some(1),
     });
   });
 
   test("several better trials: suspect, no offset chosen", () => {
     const result = checkBirthTime(trials([6, 3, 4, 6, 1]), 3, 2);
     expect(result.status).toBe("suspect");
-    expect(result.provisionalOffsetMinutes).toBeUndefined();
-    expect(result.bestOffsets).toEqual([-2, 1]);
+    expect(Option.isNone(result.provisionalOffsetMinutes)).toBe(true);
+    expect(Option.getOrThrow(result.bestOffsets)).toEqual([-2, 1]);
   });
 });
 
@@ -207,7 +210,7 @@ describe("confidence with memory", () => {
     verdict: "promised",
     inConjoinedPeriod: true,
     lords: [],
-    coverage: 0.3,
+    conjoinedShareOfLife: 0.3,
     ...overrides,
   });
 
@@ -234,7 +237,9 @@ describe("confidence with memory", () => {
   test("an empty memory keeps the level and says why the birth time is unverified", () => {
     const result = confidenceWithMemory(base, checkBirthTime([], 0, 15), []);
     expect(result.level).toBe("moderate");
-    expect(result.basis[0]).toBe("Birth time not verified: Fewer than 3 tagged past events");
+    expect(result.basis[0]).toBe(
+      "Birth time not verified: The birth time is checked only with three or more past events",
+    );
   });
 
   test("a denied or mistimed past event lowers confidence", () => {
@@ -246,30 +251,60 @@ describe("confidence with memory", () => {
   });
 
   test("hits under near-total coverage are called weak evidence", () => {
-    const result = confidenceWithMemory(base, checkBirthTime([], 1, 15), [fit({ coverage: 0.95 })]);
+    const result = confidenceWithMemory(base, checkBirthTime([], 1, 15), [
+      fit({ conjoinedShareOfLife: 0.95 }),
+    ]);
     expect(result.level).toBe("moderate");
     expect(result.basis.at(-1)).toContain("weak evidence");
   });
 });
 
+const everyLordInMoonStar: Sky = {
+  stepDays: 1,
+  samples: [
+    {
+      at: at(0),
+      starLords: Object.fromEntries(
+        KP_PLANETS.map((planet) => [planet, "Moon"]),
+      ) as unknown as Record<Planet, Planet>,
+    },
+  ],
+};
+
 describe("once-only events", () => {
   const facts = factsWith(["Moon", "Mars"], [7]);
-  const options = { from: 0, to: 400, limit: 3 };
+  const options = {
+    from: at(0),
+    to: at(400),
+    limit: 3,
+    rulingPlanets: Option.none<ReadonlyArray<Planet>>(),
+    occurred: [],
+  };
 
   test("a recorded marriage stops marriage windows", () => {
-    expect(judgeKp(facts, marriage, periods, options).timing.status).toBe("windows");
-    const judged = judgeKp(facts, marriage, periods, { ...options, occurred: [50] });
+    expect(judgeKp(facts, marriage, periods, everyLordInMoonStar, options).timing.status).toBe(
+      "windows",
+    );
+    const judged = judgeKp(facts, marriage, periods, everyLordInMoonStar, {
+      ...options,
+      occurred: [at(50)],
+    });
     expect(judged.timing).toMatchObject({ status: "already-occurred", windows: [] });
     expect(judged.promise.verdict).toBe("promised");
   });
 
   test("a repeatable event is still timed after it has happened", () => {
-    const travel = findKpEvent("foreign-travel");
-    if (travel === undefined) throw new Error("No foreign-travel event");
-    const judged = judgeKp(factsWith(["Moon", "Mars"], [12]), travel, periods, {
-      ...options,
-      occurred: [50],
-    });
+    const travel = Option.getOrThrow(findKpEvent("foreign-travel"));
+    const judged = judgeKp(
+      factsWith(["Moon", "Mars"], [12]),
+      travel,
+      periods,
+      everyLordInMoonStar,
+      {
+        ...options,
+        occurred: [at(50)],
+      },
+    );
     expect(judged.timing.status).not.toBe("already-occurred");
   });
 });

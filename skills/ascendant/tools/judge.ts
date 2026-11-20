@@ -1,75 +1,83 @@
-import { Chart, Dasha } from "astro-ascendant";
-import { DateTime, Effect, FileSystem, Path } from "effect";
+import { Chart, Dasha, Ephemeris } from "astro-ascendant";
+import {
+  Array as Arr,
+  DateTime,
+  Duration,
+  Effect,
+  FileSystem,
+  Option,
+  Path,
+  pipe,
+  Schema,
+} from "effect";
 
 import {
   calculationContext,
+  ChartIncomplete,
   decodeMoment,
   KpAstroParams,
+  PersonName,
   readStoredPerson,
   type StoredPerson,
 } from "./common.ts";
-import { EXCLUDED_KP_EVENTS, findKpEvent, KP_EVENTS, type House } from "./events.ts";
+import { EXCLUDED_KP_EVENTS, findKpEvent, KP_EVENTS } from "./events.ts";
 import {
+  BirthTime,
   checkBirthTime,
   confidenceWithMemory,
+  Fit,
   fitPastEvent,
   MIN_PAST_EVENTS,
   scoreFit,
 } from "./kp-hindcast.ts";
 import {
+  ENGINE_CHOICES,
   judgeKp,
-  KP_HOUSES,
-  KP_PLANETS,
-  type KpFacts,
+  Judgment,
+  KpFacts,
+  Planet,
   type KpPeriod,
-  type Planet,
+  type Sky,
 } from "./kp-judge.ts";
-import { kpCuspAndPlanetLords } from "./kp-lords.ts";
-import { parseMemory, type Memory } from "./memory.ts";
+import { kpCuspAndPlanetLords, starLordOf } from "./kp-lords.ts";
+import { emptyMemory, IgnoredLine, parseMemory } from "./memory.ts";
 import { rulingPlanetsWorkflow } from "./ruling-planets.ts";
 import type { JudgeInput } from "./tool-specs.ts";
 
 const DEFAULT_YEARS = 10;
 const DEFAULT_LIMIT = 5;
 const DEFAULT_RECTIFY_MINUTES = 15;
-const YEAR_MS = 365.25 * 24 * 60 * 60 * 1000;
+const DAYS_PER_YEAR = 365.25;
 
-const iso = (epochMillis: number): string => new Date(epochMillis).toISOString();
+export class UnknownEvent extends Schema.TaggedError<UnknownEvent>()("UnknownEvent", {
+  event: Schema.String,
+  message: Schema.String,
+}) {}
 
-/** Reads the facts the KP rules need from one KP D1. */
 export const kpFactsOf = Effect.fn("Ascendant.kpFactsOf")(function* (chart: Chart.D1Chart) {
   const lords = kpCuspAndPlanetLords(chart);
-  const cuspSubLords = new Map<House, Planet>(
-    lords.cuspLords.map((cusp) => [cusp.house, cusp.subLord]),
-  );
-  const planetStarLords = new Map<string, Planet>(
-    lords.planetLords.map((planet) => [planet.name, planet.starLord]),
-  );
-  const planetSubLords = new Map<string, Planet>(
-    lords.planetLords.map((planet) => [planet.name, planet.subLord]),
-  );
-  const complete =
-    KP_HOUSES.every((house) => cuspSubLords.has(house)) &&
-    KP_PLANETS.every((planet) => planetStarLords.has(planet) && planetSubLords.has(planet));
-  if (
-    !complete ||
-    chart.planetSignifications === undefined ||
-    chart.houseSignificators === undefined
-  ) {
-    return yield* Effect.fail(new Error("KP chart is missing cusps, planets or significators"));
-  }
-  return {
-    cuspSubLords: Object.fromEntries(cuspSubLords) as Record<House, Planet>,
-    planetStarLords: Object.fromEntries(planetStarLords) as Record<Planet, Planet>,
-    planetSubLords: Object.fromEntries(planetSubLords) as Record<Planet, Planet>,
+  const planets = Arr.filter(lords.planetLords, (planet) => planet.name !== "Lagna");
+  return yield* Schema.decodeUnknownEffect(KpFacts)({
+    cuspSubLords: Object.fromEntries(
+      Arr.map(lords.cuspLords, (cusp) => [cusp.house, cusp.subLord]),
+    ),
+    planetStarLords: Object.fromEntries(
+      Arr.map(planets, (planet) => [planet.name, planet.starLord]),
+    ),
+    planetSubLords: Object.fromEntries(Arr.map(planets, (planet) => [planet.name, planet.subLord])),
     planetSignifications: chart.planetSignifications,
     houseSignificators: chart.houseSignificators,
-  } satisfies KpFacts;
+  }).pipe(
+    Effect.mapError(
+      () => new ChartIncomplete({ message: "KP chart is missing cusps, planets or significators" }),
+    ),
+  );
 });
 
-/** KP facts and every antara period of the life, for one birth moment. */
-const kpChartAt = Effect.fn("Ascendant.kpChartAt")(function* (
-  person: StoredPerson,
+export type BirthPlace = Pick<StoredPerson, "latitude" | "longitude" | "sex">;
+
+export const kpChartAt = Effect.fn("Ascendant.kpChartAt")(function* (
+  person: BirthPlace,
   birth: DateTime.Utc,
 ) {
   const moment = Chart.Moment.make({ date: birth });
@@ -82,29 +90,74 @@ const kpChartAt = Effect.fn("Ascendant.kpChartAt")(function* (
     },
     [],
   );
-  const d1 = calculation.charts[0];
-  if (d1 === undefined) {
-    return yield* Effect.fail(new Error("KP chart generation returned no D1"));
-  }
+  const d1 = yield* pipe(
+    Option.fromUndefinedOr(calculation.charts[0]),
+    Option.match({
+      onNone: () =>
+        Effect.fail(new ChartIncomplete({ message: "KP chart generation returned no D1" })),
+      onSome: Effect.succeed,
+    }),
+  );
   const facts = yield* kpFactsOf(d1);
   const timeline = yield* Dasha.calculate(moment, calculation.placements);
-  const periods: ReadonlyArray<KpPeriod> = timeline
-    .flatMap((mahadasha) => mahadasha.antardashas)
-    .flatMap((antardasha) => Dasha.pratyantardashas(antardasha))
-    .map((antara) => ({
+  const periods = pipe(
+    timeline,
+    Arr.flatMap((mahadasha) => mahadasha.antardashas),
+    Arr.flatMap((antardasha) => Dasha.pratyantardashas(antardasha)),
+    Arr.map((antara): KpPeriod => ({
       dasha: antara.mahadasha,
       bhukti: antara.antardasha,
       antara: antara.pratyantardasha,
-      start: DateTime.toEpochMillis(antara.start),
-      end: DateTime.toEpochMillis(antara.end),
-    }));
+      start: antara.start,
+      end: antara.end,
+    })),
+  );
   return { facts, periods };
 });
 
-const NO_MEMORY: Memory = { events: [], ignored: [] };
+const MILLIS_PER_DAY = 24 * 60 * 60 * 1000;
+export const TRANSIT_STEP_DAYS = 1;
 
-/** The person's `MEMORY.md`; a missing file is an empty memory. */
-const readMemory = Effect.fn("Ascendant.readMemory")(function* (name: string) {
+export const skyBetween = Effect.fn("Ascendant.skyBetween")(function* (
+  from: DateTime.Utc,
+  to: DateTime.Utc,
+  stepDays: number,
+) {
+  const ephemeris = yield* Ephemeris.Ephemeris;
+  const sampleCount = Math.max(
+    0,
+    Math.ceil(
+      (DateTime.toEpochMillis(to) - DateTime.toEpochMillis(from)) / (stepDays * MILLIS_PER_DAY),
+    ),
+  );
+  const samples = yield* Effect.forEach(
+    Arr.makeBy(sampleCount, (index) => DateTime.add(from, { days: index * stepDays })),
+    (at) =>
+      Effect.gen(function* () {
+        const julianDay = yield* ephemeris.dateToJulianDay(at);
+        const starLordOfTransiting = (planet: Planet) =>
+          Effect.map(
+            ephemeris.calculatePosition(julianDay, planet, KpAstroParams.ayanamsa),
+            (position): Planet => starLordOf(position.longitude),
+          );
+        const starLords = yield* Effect.all({
+          Sun: starLordOfTransiting("Sun"),
+          Moon: starLordOfTransiting("Moon"),
+          Mars: starLordOfTransiting("Mars"),
+          Mercury: starLordOfTransiting("Mercury"),
+          Jupiter: starLordOfTransiting("Jupiter"),
+          Venus: starLordOfTransiting("Venus"),
+          Saturn: starLordOfTransiting("Saturn"),
+          Rahu: starLordOfTransiting("Rahu"),
+          Ketu: starLordOfTransiting("Ketu"),
+        });
+        return { at, starLords };
+      }),
+  );
+  return { stepDays, samples } satisfies Sky;
+});
+
+const readMemoryOrEmpty = Effect.fn("Ascendant.readMemoryOrEmpty")(function* (name: string) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const file = path.join("persons", name, "MEMORY.md");
@@ -112,36 +165,85 @@ const readMemory = Effect.fn("Ascendant.readMemory")(function* (name: string) {
   return {
     file: `persons/${name}/MEMORY.md`,
     found,
-    memory: found ? parseMemory(yield* fs.readFileString(file)) : NO_MEMORY,
+    memory: found ? parseMemory(yield* fs.readFileString(file)) : emptyMemory,
   };
 });
 
-/**
- * The KP judgment for one saved person, one event and one time window. It is a
- * function of the birth data, the input and the tagged events in `MEMORY.md`:
- * the same three always give the same judgment.
- */
+const Ruling = Schema.Struct({ moment: Schema.String, planets: Schema.Array(Planet) });
+interface Ruling extends Schema.Schema.Type<typeof Ruling> {}
+
+const MemoryReport = Schema.Union([
+  Schema.Struct({ status: Schema.Literal("not-used") }),
+  Schema.Struct({
+    file: Schema.String,
+    status: Schema.Literals(["missing", "empty", "used"]),
+    used: Schema.Array(
+      Schema.Struct({
+        line: Schema.Int,
+        date: Schema.String,
+        event: Schema.String,
+        message: Schema.String,
+      }),
+    ),
+    ignored: Schema.Array(IgnoredLine),
+    hindcast: Schema.Array(Fit),
+    birthTime: BirthTime,
+  }),
+]);
+
+export const JudgeResult = Schema.Struct({
+  person: Schema.Struct({ name: PersonName }),
+  calculation: Schema.Struct({
+    school: Schema.String,
+    ayanamsa: Schema.String,
+    houseSystem: Schema.String,
+    dashaSystem: Schema.String,
+  }),
+  window: Schema.Struct({
+    from: Schema.DateTimeUtcFromString,
+    to: Schema.DateTimeUtcFromString,
+  }),
+  rulingPlanets: Schema.OptionFromOptionalKey(Ruling),
+  ...Judgment.fields,
+  memory: MemoryReport,
+});
+export interface JudgeResult extends Schema.Schema.Type<typeof JudgeResult> {}
+
 export const judgeWorkflow = Effect.fn("Ascendant.judge")(function* (input: JudgeInput) {
-  const event = findKpEvent(input.event);
-  if (event === undefined) {
-    return yield* Effect.fail(new Error(`Unknown event ${input.event}`));
-  }
+  const event = yield* Option.match(findKpEvent(input.event), {
+    onNone: () =>
+      Effect.fail(
+        new UnknownEvent({ event: input.event, message: `Unknown event ${input.event}` }),
+      ),
+    onSome: Effect.succeed,
+  });
   const person = yield* readStoredPerson(input.name);
   const birth = yield* decodeMoment(person.moment);
   const recorded = yield* kpChartAt(person, birth);
 
-  const from = DateTime.toEpochMillis(yield* decodeMoment(input.from));
-  const to = from + (input.years ?? DEFAULT_YEARS) * YEAR_MS;
+  const from = yield* decodeMoment(input.from);
+  const to = DateTime.addDuration(
+    from,
+    Duration.days((input.years ?? DEFAULT_YEARS) * DAYS_PER_YEAR),
+  );
 
-  const stored = (input.useMemory ?? true) ? yield* readMemory(person.name) : undefined;
-  const past = stored?.memory.events ?? [];
-  const span = { from: DateTime.toEpochMillis(birth), to: from };
-  const fits = past.map((entry) => fitPastEvent(recorded.facts, recorded.periods, entry, span));
+  const stored =
+    (input.useMemory ?? true)
+      ? Option.some(yield* readMemoryOrEmpty(person.name))
+      : Option.none<Effect.Success<ReturnType<typeof readMemoryOrEmpty>>>();
+  const past = Option.match(stored, {
+    onNone: () => emptyMemory.events,
+    onSome: ({ memory }) => memory.events,
+  });
+  const span = { from: birth, to: from };
+  const fits = Arr.map(past, (entry) =>
+    fitPastEvent(recorded.facts, recorded.periods, entry, span),
+  );
 
   const windowMinutes = input.rectifyMinutes ?? DEFAULT_RECTIFY_MINUTES;
   const offsets =
     past.length >= MIN_PAST_EVENTS && windowMinutes > 0
-      ? Array.from({ length: 2 * windowMinutes + 1 }, (_, index) => index - windowMinutes)
+      ? Arr.range(-windowMinutes, windowMinutes)
       : [];
   const trials = yield* Effect.forEach(offsets, (offsetMinutes) =>
     (offsetMinutes === 0
@@ -150,81 +252,91 @@ export const judgeWorkflow = Effect.fn("Ascendant.judge")(function* (input: Judg
     ).pipe(
       Effect.map((chart) => ({
         offsetMinutes,
-        score: past.reduce(
-          (sum, entry) => sum + scoreFit(fitPastEvent(chart.facts, chart.periods, entry, span)),
+        score: Arr.reduce(
+          past,
           0,
+          (sum, entry) => sum + scoreFit(fitPastEvent(chart.facts, chart.periods, entry, span)),
         ),
       })),
     ),
   );
   const birthTime = checkBirthTime(trials, past.length, windowMinutes);
 
-  const ruling =
-    input.judgmentMoment === undefined
-      ? undefined
-      : yield* rulingPlanetsWorkflow(input.judgmentMoment, person.latitude, person.longitude);
-  const rulingPlanets =
-    ruling === undefined ? undefined : [...new Set<Planet>(ruling.rulingPlanets ?? [])];
+  const ruling = yield* Option.match(Option.fromUndefinedOr(input.judgmentMoment), {
+    onNone: () => Effect.succeed(Option.none<Ruling>()),
+    onSome: (moment) =>
+      Effect.map(
+        rulingPlanetsWorkflow(moment, person.latitude, person.longitude),
+        ({ moment: at, rulingPlanets }) =>
+          Option.some<Ruling>({
+            moment: at,
+            planets: Arr.dedupe(Arr.fromIterable<Planet>(rulingPlanets ?? [])),
+          }),
+      ),
+  });
 
-  const judgment = judgeKp(recorded.facts, event, recorded.periods, {
+  const sky = yield* skyBetween(from, to, TRANSIT_STEP_DAYS);
+  const judgment = judgeKp(recorded.facts, event, recorded.periods, sky, {
     from,
     to,
     limit: input.limit ?? DEFAULT_LIMIT,
-    occurred: past.filter((entry) => entry.event.id === event.id).map((entry) => entry.at),
-    ...(rulingPlanets !== undefined ? { rulingPlanets } : {}),
+    rulingPlanets: Option.map(ruling, ({ planets }) => planets),
+    occurred: pipe(
+      past,
+      Arr.filter((entry) => entry.event.id === event.id),
+      Arr.map((entry) => entry.noonUtc),
+    ),
   });
 
-  return {
+  const result: JudgeResult = {
     person: { name: person.name },
     calculation: calculationContext("KP", KpAstroParams),
-    window: { from: iso(from), to: iso(to) },
-    ...(ruling !== undefined && rulingPlanets !== undefined
-      ? { rulingPlanets: { moment: ruling.moment, planets: rulingPlanets } }
-      : {}),
+    window: { from, to },
+    rulingPlanets: ruling,
     ...judgment,
-    timing: {
-      ...judgment.timing,
-      windows: judgment.timing.windows.map((window) => ({
-        ...window,
-        start: iso(window.start),
-        end: iso(window.end),
-      })),
-    },
-    confidence:
-      stored === undefined
-        ? judgment.confidence
-        : confidenceWithMemory(judgment.confidence, birthTime, fits),
-    memory:
-      stored === undefined
-        ? { status: "not-used" as const }
-        : {
-            file: stored.file,
-            status: !stored.found
-              ? ("missing" as const)
-              : past.length === 0
-                ? ("empty" as const)
-                : ("used" as const),
-            used: past.map((entry) => ({
-              line: entry.line,
-              date: entry.date,
-              event: entry.event.id,
-              message: entry.message,
-            })),
-            ignored: stored.memory.ignored,
-            hindcast: fits,
-            birthTime,
-          },
+    confidence: Option.match(stored, {
+      onNone: () => judgment.confidence,
+      onSome: () => confidenceWithMemory(judgment.confidence, birthTime, fits),
+    }),
+    memory: Option.match(stored, {
+      onNone: () => ({ status: "not-used" as const }),
+      onSome: ({ file, found, memory }) => ({
+        file,
+        status: !found
+          ? ("missing" as const)
+          : past.length === 0
+            ? ("empty" as const)
+            : ("used" as const),
+        used: Arr.map(past, (entry) => ({
+          line: entry.line,
+          date: entry.date,
+          event: entry.event.id,
+          message: entry.message,
+        })),
+        ignored: memory.ignored,
+        hindcast: fits,
+        birthTime,
+      }),
+    }),
   };
+  return yield* Effect.orDie(Schema.encodeEffect(JudgeResult)(result));
 });
 
-/** Events the judge accepts, and the guidebook rows it refuses with the reason. */
 export const listEvents = () => ({
-  events: KP_EVENTS.map(({ id, label, primary, supporting, optional }) => ({
+  events: Arr.map(KP_EVENTS, ({ id, label, primary, supporting, parenthesised }) => ({
     id,
     label,
     primary,
     supporting: supporting.join(","),
-    optional: optional.join(",") || "-",
+    parenthesised: parenthesised.join(",") || "-",
   })),
-  refused: EXCLUDED_KP_EVENTS.map(({ label, primary, reason }) => ({ label, primary, reason })),
+  refused: Arr.map(EXCLUDED_KP_EVENTS, ({ label, primary, reason }) => ({
+    label,
+    primary,
+    reason,
+  })),
+  engineChoices: Arr.map(Object.entries(ENGINE_CHOICES), ([choice, statement]) => ({
+    choice,
+    statement,
+  })),
 });

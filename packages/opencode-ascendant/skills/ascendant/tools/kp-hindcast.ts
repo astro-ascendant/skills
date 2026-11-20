@@ -1,205 +1,236 @@
+import { Array as Arr, DateTime, Option, pipe, Schema } from "effect";
+
 import type { KpEvent } from "./events.ts";
 import {
+  BIRTH_TIME_NOT_VERIFIED,
+  ENGINE_CHOICES,
   houseGroup,
   judgePromise,
+  Planet,
   rankSignificators,
+  Verdict,
+  VERDICT_ALLOWS_EVENT,
   type Confidence,
   type KpFacts,
   type KpPeriod,
-  type Planet,
-  type Verdict,
 } from "./kp-judge.ts";
-
-/**
- * Checks the KP rules against events that already happened. Pure, like
- * `kp-judge.ts`. Nothing here comes from the guidebook: it is the engine
- * testing itself on one person's past, so every rule is an engine choice.
- */
 
 export interface PastEvent {
   readonly date: string;
-  /** Epoch milliseconds. */
-  readonly at: number;
+  readonly noonUtc: DateTime.Utc;
   readonly event: KpEvent;
 }
 
-export interface Fit {
-  readonly date: string;
-  readonly event: string;
-  /** What the promise rule says about an event that did happen. */
-  readonly verdict: Verdict;
-  /** Whether the date falls in a period whose three lords are all significators. */
-  readonly inConjoinedPeriod: boolean;
-  readonly lords: ReadonlyArray<Planet>;
-  /**
-   * Share of the life span covered by such periods, 0 to 1. A hit means little
-   * when this is near 1: the date would have fallen in a qualifying period by
-   * chance.
-   */
-  readonly coverage: number;
+export interface LifeSpan {
+  readonly from: DateTime.Utc;
+  readonly to: DateTime.Utc;
 }
 
-const round = (value: number): number => Math.round(value * 1000) / 1000;
+export const Fit = Schema.Struct({
+  date: Schema.String,
+  event: Schema.String,
+  verdict: Verdict,
+  inConjoinedPeriod: Schema.Boolean,
+  lords: Schema.Array(Planet),
+  conjoinedShareOfLife: Schema.Finite,
+});
+export interface Fit extends Schema.Schema.Type<typeof Fit> {}
 
-/** How one past event sits against the chart, over the span `from` to `to`. */
+const toThreeDecimals = (value: number): number => Math.round(value * 1000) / 1000;
+
+export const isConjoinedFor = (facts: KpFacts, event: KpEvent) => {
+  const significators = Arr.map(
+    rankSignificators(facts, houseGroup(event), Option.none()),
+    (entry) => entry.planet,
+  );
+  return (period: KpPeriod): boolean =>
+    Arr.every([period.dasha, period.bhukti, period.antara], (lord) =>
+      Arr.contains(significators, lord),
+    );
+};
+
+export const conjoinedPeriods = (
+  facts: KpFacts,
+  periods: ReadonlyArray<KpPeriod>,
+  event: KpEvent,
+): ReadonlyArray<KpPeriod> => Arr.filter(periods, isConjoinedFor(facts, event));
+
+const millisInside = (period: KpPeriod, span: LifeSpan): number =>
+  Math.max(
+    0,
+    DateTime.toEpochMillis(DateTime.min(period.end, span.to)) -
+      DateTime.toEpochMillis(DateTime.max(period.start, span.from)),
+  );
+
 export function fitPastEvent(
   facts: KpFacts,
   periods: ReadonlyArray<KpPeriod>,
   past: PastEvent,
-  span: { readonly from: number; readonly to: number },
+  span: LifeSpan,
 ): Fit {
-  const group = houseGroup(past.event);
-  const significators = new Set(
-    rankSignificators(facts, group, undefined).map((entry) => entry.planet),
+  const isConjoined = isConjoinedFor(facts, past.event);
+  const running = Arr.findFirst(
+    periods,
+    (period) =>
+      DateTime.isLessThanOrEqualTo(period.start, past.noonUtc) &&
+      DateTime.isLessThan(past.noonUtc, period.end),
   );
-  const conjoined = (period: KpPeriod) =>
-    significators.has(period.dasha) &&
-    significators.has(period.bhukti) &&
-    significators.has(period.antara);
-  const running = periods.find((period) => period.start <= past.at && past.at < period.end);
-  const covered = periods.reduce((sum, period) => {
-    const overlap = Math.min(period.end, span.to) - Math.max(period.start, span.from);
-    return conjoined(period) && overlap > 0 ? sum + overlap : sum;
-  }, 0);
+  const conjoinedMillis = pipe(
+    periods,
+    Arr.filter(isConjoined),
+    Arr.reduce(0, (sum, period) => sum + millisInside(period, span)),
+  );
+  const spanMillis = DateTime.toEpochMillis(span.to) - DateTime.toEpochMillis(span.from);
   return {
     date: past.date,
     event: past.event.id,
-    verdict: judgePromise(facts, past.event, group).verdict,
-    inConjoinedPeriod: running !== undefined && conjoined(running),
-    lords: running === undefined ? [] : [running.dasha, running.bhukti, running.antara],
-    coverage: span.to > span.from ? round(covered / (span.to - span.from)) : 0,
+    verdict: judgePromise(facts, past.event, houseGroup(past.event)).verdict,
+    inConjoinedPeriod: Option.exists(running, isConjoined),
+    lords: Option.match(running, {
+      onNone: () => [],
+      onSome: (period) => [period.dasha, period.bhukti, period.antara],
+    }),
+    conjoinedShareOfLife: spanMillis > 0 ? toThreeDecimals(conjoinedMillis / spanMillis) : 0,
   };
 }
 
-/** One point when the promise allows the event, one when its period qualifies. */
+const POINT_FOR_CONJOINED_PERIOD = 1;
+
 export const scoreFit = (fit: Fit): number =>
-  (fit.verdict === "promised" || fit.verdict === "mixed" ? 1 : 0) + (fit.inConjoinedPeriod ? 1 : 0);
+  VERDICT_ALLOWS_EVENT[fit.verdict] + (fit.inConjoinedPeriod ? POINT_FOR_CONJOINED_PERIOD : 0);
 
 export const MIN_PAST_EVENTS = 3;
 
 export interface Trial {
-  /** Minutes added to the recorded birth time; 0 is the recorded time. */
   readonly offsetMinutes: number;
   readonly score: number;
 }
 
-export type BirthTimeStatus = "consistent" | "suspect" | "uninformative" | "unverified";
+const RECORDED_BIRTH_TIME_OFFSET = 0;
 
-export interface BirthTime {
-  readonly status: BirthTimeStatus;
-  readonly pastEvents: number;
-  readonly windowMinutes: number;
-  readonly recordedScore?: number;
-  readonly bestScore?: number;
-  /** Offsets, in minutes, of the trial moments that fit the past events best. */
-  readonly bestOffsets?: ReadonlyArray<number>;
-  /** Set only when exactly one trial moment fits best and it is not the recorded one. */
-  readonly provisionalOffsetMinutes?: number;
-  readonly detail: string;
-}
+export const BirthTimeStatus = Schema.Literals([
+  "consistent",
+  "suspect",
+  "uninformative",
+  "unverified",
+]);
+export type BirthTimeStatus = typeof BirthTimeStatus.Type;
 
-/**
- * Compares the recorded birth time with trial moments around it, by how well
- * each fits the past events. It replaces the ruling-planets test at "now",
- * whose answer changes with the moment of asking.
- *
- * - Fewer than three past events: `unverified`.
- * - Every trial scores the same: `uninformative`, the events cannot tell the
- *   moments apart.
- * - The recorded moment scores best: `consistent`.
- * - Otherwise `suspect`, with a provisional offset only when one trial alone
- *   scores best.
- */
+export const BirthTime = Schema.Struct({
+  status: BirthTimeStatus,
+  pastEvents: Schema.Int,
+  windowMinutes: Schema.Finite,
+  recordedScore: Schema.OptionFromOptionalKey(Schema.Finite),
+  bestScore: Schema.OptionFromOptionalKey(Schema.Finite),
+  bestOffsets: Schema.OptionFromOptionalKey(Schema.Array(Schema.Finite)),
+  provisionalOffsetMinutes: Schema.OptionFromOptionalKey(Schema.Finite),
+  detail: Schema.String,
+});
+export interface BirthTime extends Schema.Schema.Type<typeof BirthTime> {}
+
 export function checkBirthTime(
   trials: ReadonlyArray<Trial>,
   pastEvents: number,
   windowMinutes: number,
 ): BirthTime {
-  const base = { pastEvents, windowMinutes };
-  const recorded = trials.find((trial) => trial.offsetMinutes === 0);
-  if (pastEvents < MIN_PAST_EVENTS || windowMinutes === 0 || recorded === undefined) {
-    return {
-      ...base,
-      status: "unverified",
-      detail:
-        pastEvents < MIN_PAST_EVENTS
-          ? `Fewer than ${MIN_PAST_EVENTS} tagged past events`
-          : "Birth-time check switched off",
-    };
+  const unverified = (detail: string): BirthTime => ({
+    status: "unverified",
+    pastEvents,
+    windowMinutes,
+    recordedScore: Option.none(),
+    bestScore: Option.none(),
+    bestOffsets: Option.none(),
+    provisionalOffsetMinutes: Option.none(),
+    detail,
+  });
+  if (pastEvents < MIN_PAST_EVENTS) {
+    return unverified(ENGINE_CHOICES["three-past-events-minimum"]);
   }
-  const bestScore = Math.max(...trials.map((trial) => trial.score));
-  const worstScore = Math.min(...trials.map((trial) => trial.score));
-  const bestOffsets = trials
-    .filter((trial) => trial.score === bestScore)
-    .map((trial) => trial.offsetMinutes);
-  const scores = { recordedScore: recorded.score, bestScore, bestOffsets };
-  if (bestScore === worstScore) {
-    return {
-      ...base,
-      ...scores,
-      status: "uninformative",
-      detail: "Every trial moment fits the past events equally",
-    };
-  }
-  if (recorded.score === bestScore) {
-    return {
-      ...base,
-      ...scores,
-      status: "consistent",
-      detail: "No trial moment fits the past events better than the recorded one",
-    };
-  }
-  const [only, ...rest] = bestOffsets;
-  return only !== undefined && rest.length === 0
-    ? {
-        ...base,
-        ...scores,
-        status: "suspect",
-        provisionalOffsetMinutes: only,
-        detail: `Past events fit best ${only} minutes from the recorded time`,
-      }
-    : {
-        ...base,
-        ...scores,
-        status: "suspect",
-        detail: "Several trial moments fit the past events better than the recorded one",
-      };
+  return pipe(
+    Arr.findFirst(trials, (trial) => trial.offsetMinutes === RECORDED_BIRTH_TIME_OFFSET),
+    Option.filter(() => windowMinutes > 0),
+    Option.match({
+      onNone: () => unverified("Birth-time check switched off"),
+      onSome: (recorded): BirthTime => {
+        const scores = Arr.map(trials, (trial) => trial.score);
+        const bestScore = Math.max(...scores);
+        const bestOffsets = pipe(
+          trials,
+          Arr.filter((trial) => trial.score === bestScore),
+          Arr.map((trial) => trial.offsetMinutes),
+        );
+        const everyTrialScoresTheSame = bestScore === Math.min(...scores);
+        const recordedAmongBest = recorded.score === bestScore;
+        const uniqueBetterOffset = pipe(
+          Arr.head(bestOffsets),
+          Option.filter(() => bestOffsets.length === 1 && !recordedAmongBest),
+        );
+        const [status, detail]: readonly [BirthTimeStatus, string] = everyTrialScoresTheSame
+          ? ["uninformative", ENGINE_CHOICES["flat-scores-uninformative"]]
+          : recordedAmongBest
+            ? ["consistent", ENGINE_CHOICES["ties-favour-recorded"]]
+            : [
+                "suspect",
+                Option.match(uniqueBetterOffset, {
+                  onNone: () =>
+                    "Several trial moments fit the past events better than the recorded one",
+                  onSome: (offset) =>
+                    `Past events fit best ${offset} minutes from the recorded time`,
+                }),
+              ];
+        return {
+          status,
+          pastEvents,
+          windowMinutes,
+          recordedScore: Option.some(recorded.score),
+          bestScore: Option.some(bestScore),
+          bestOffsets: Option.some(bestOffsets),
+          provisionalOffsetMinutes: uniqueBetterOffset,
+          detail,
+        };
+      },
+    }),
+  );
 }
 
-const NOT_VERIFIED = "Birth time not verified";
-const HIGH_COVERAGE = 0.8;
+const WEAK_EVIDENCE_SHARE_OF_LIFE = 0.8;
 
-/** Adjusts the judgment's confidence for what the past events showed. */
+const when = <A>(holds: boolean, value: () => A): Option.Option<A> =>
+  holds ? Option.some(value()) : Option.none();
+
 export function confidenceWithMemory(
   confidence: Confidence,
   birthTime: BirthTime,
   fits: ReadonlyArray<Fit>,
 ): Confidence {
-  const basis = confidence.basis.filter((reason) => reason !== NOT_VERIFIED);
-  let low = confidence.level === "low";
-  if (birthTime.status === "consistent") {
-    basis.unshift(
-      `Birth time consistent with ${birthTime.pastEvents} past events within ${birthTime.windowMinutes} minutes`,
-    );
-  } else {
-    basis.unshift(`${NOT_VERIFIED}: ${birthTime.detail}`);
-    if (birthTime.status === "suspect") low = true;
-  }
-
-  const denied = fits.filter((fit) => fit.verdict === "denied").length;
-  if (denied > 0) {
-    basis.push(`The promise rule denies ${denied} past events that did happen`);
-    low = true;
-  }
-  const missed = fits.filter((fit) => !fit.inConjoinedPeriod).length;
-  if (missed > 0) {
-    basis.push(`${missed} past events fell outside a conjoined period of significators`);
-    low = true;
-  }
-  if (fits.length > 0 && fits.every((fit) => fit.coverage >= HIGH_COVERAGE)) {
-    basis.push(
-      "Conjoined periods cover most of the life span, so past events falling inside them is weak evidence",
-    );
-  }
-  return { level: low ? "low" : "moderate", calibrated: false, basis };
+  const denied = Arr.filter(fits, (fit) => VERDICT_ALLOWS_EVENT[fit.verdict] === 0).length;
+  const outsideConjoined = Arr.filter(fits, (fit) => !fit.inConjoinedPeriod).length;
+  const doubts = Arr.getSomes([
+    when(denied > 0, () => `The promise rule does not allow ${denied} past events that did happen`),
+    when(
+      outsideConjoined > 0,
+      () => `${outsideConjoined} past events fell outside a conjoined period of significators`,
+    ),
+  ]);
+  return {
+    level:
+      confidence.level === "low" || birthTime.status === "suspect" || doubts.length > 0
+        ? "low"
+        : confidence.level,
+    calibrated: false,
+    basis: [
+      birthTime.status === "consistent"
+        ? `Birth time consistent with ${birthTime.pastEvents} past events within ${birthTime.windowMinutes} minutes`
+        : `${BIRTH_TIME_NOT_VERIFIED}: ${birthTime.detail}`,
+      ...Arr.filter(confidence.basis, (reason) => reason !== BIRTH_TIME_NOT_VERIFIED),
+      ...doubts,
+      ...Arr.getSomes([
+        when(
+          fits.length > 0 &&
+            Arr.every(fits, (fit) => fit.conjoinedShareOfLife >= WEAK_EVIDENCE_SHARE_OF_LIFE),
+          () => ENGINE_CHOICES["high-coverage-weak-evidence"],
+        ),
+      ]),
+    ],
+  };
 }

@@ -1,8 +1,9 @@
 import { Chart } from "astro-ascendant";
-import { DateTime, Effect } from "effect";
+import { Array as Arr, DateTime, Effect, Option, pipe } from "effect";
 
 import {
   calculationContext,
+  ChartIncomplete,
   decodeMoment,
   KpAstroParams,
   type Latitude,
@@ -23,19 +24,25 @@ export const rulingPlanetsWorkflow = Effect.fn("Ascendant.rulingPlanets")(functi
     longitude,
   };
   const calculation = yield* Chart.generate(chartParams, []);
-  const d1 = calculation.charts[0];
-  if (d1 === undefined) {
-    return yield* Effect.fail(new Error("KP chart generation returned no D1"));
-  }
-  const lagnaLongitude = d1.houses[1].lagna?.longitude;
-  if (lagnaLongitude === undefined) {
-    return yield* Effect.fail(new Error("KP chart generation returned no Lagna"));
-  }
-  const planets = Object.values(d1.houses).flatMap((house) => house.planets);
-  const moonEntry = planets.find((planet) => planet.name === "Moon");
-  if (moonEntry === undefined) {
-    return yield* Effect.fail(new Error("KP chart generation returned no Moon"));
-  }
+  const present = <A>(value: Option.Option<A>, missing: string) =>
+    Option.match(value, {
+      onNone: () =>
+        Effect.fail(new ChartIncomplete({ message: `KP chart generation returned no ${missing}` })),
+      onSome: Effect.succeed,
+    });
+  const d1 = yield* present(Option.fromUndefinedOr(calculation.charts[0]), "D1");
+  const lagnaLongitude = yield* present(
+    Option.fromNullishOr(d1.houses[1].lagna?.longitude),
+    "Lagna",
+  );
+  const moonEntry = yield* present(
+    pipe(
+      Object.values(d1.houses),
+      Arr.flatMap((house) => house.planets),
+      Arr.findFirst((planet) => planet.name === "Moon"),
+    ),
+    "Moon",
+  );
   return {
     moment: DateTime.formatIso(date),
     latitude,

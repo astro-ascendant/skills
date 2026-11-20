@@ -7,7 +7,7 @@
 import * as BunFileSystem from "@effect/platform-bun/BunFileSystem";
 import { AstroParams, Chart } from "astro-ascendant";
 import * as Swisseph from "astro-ascendant/swisseph";
-import { DateTime, Effect, FileSystem, Layer, Path, Schema } from "effect";
+import { Array as Arr, DateTime, Effect, FileSystem, Layer, Option, Path, Schema } from "effect";
 
 import { Latitude, Longitude, OffsetMoment, PersonName, Sex } from "./contract.ts";
 import { PathLive } from "./path.ts";
@@ -46,6 +46,10 @@ export class RecordDecodingError extends Schema.TaggedError<RecordDecodingError>
     message: Schema.String,
   },
 ) {}
+
+export class ChartIncomplete extends Schema.TaggedError<ChartIncomplete>()("ChartIncomplete", {
+  message: Schema.String,
+}) {}
 
 const NodeServicesLayer: Layer.Layer<FileSystem.FileSystem | Path.Path> = Layer.mergeAll(
   BunFileSystem.layer,
@@ -101,15 +105,16 @@ export function makeLocatedMoment(
   });
 }
 
+const momentOf = Schema.decodeUnknownOption(Schema.DateTimeUtcFromString);
+
 function momentsEqual(left: OffsetMoment, right: OffsetMoment): boolean {
-  if (left === right) return true;
-  try {
-    const leftDate = Schema.decodeUnknownSync(Schema.DateTimeUtcFromString)(left);
-    const rightDate = Schema.decodeUnknownSync(Schema.DateTimeUtcFromString)(right);
-    return DateTime.Equivalence(leftDate, rightDate);
-  } catch {
-    return false;
-  }
+  return (
+    left === right ||
+    Option.getOrElse(
+      Option.zipWith(momentOf(left), momentOf(right), DateTime.Equivalence),
+      () => false,
+    )
+  );
 }
 
 export function personRecordMatches(left: StoredPerson, right: StoredPerson): boolean {
@@ -149,13 +154,19 @@ function parseInputFrontmatter(contents: string, inputFile: string) {
       }),
     );
   }
-  const fields: Record<string, string | number> = {};
-  for (const line of match[1].split(/\r?\n/)) {
-    if (line.trim() === "") continue;
-    const colon = line.indexOf(":");
-    if (colon <= 0) continue;
-    fields[line.slice(0, colon).trim()] = parseFrontmatterValue(line.slice(colon + 1));
-  }
+  const fields: Record<string, string | number> = Object.fromEntries(
+    Arr.getSomes(
+      Arr.map(match[1].split(/\r?\n/), (line) => {
+        const colon = line.indexOf(":");
+        return colon > 0
+          ? Option.some([
+              line.slice(0, colon).trim(),
+              parseFrontmatterValue(line.slice(colon + 1)),
+            ] as const)
+          : Option.none();
+      }),
+    ),
+  );
   return Schema.decodeUnknownEffect(StoredPerson)({
     schemaVersion: 1,
     name: fields["name"],

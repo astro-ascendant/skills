@@ -16,6 +16,7 @@
     "add-person": "bun skills/ascendant/tools/ascendant.ts add-person",
     "check-transit": "bun skills/ascendant/tools/ascendant.ts transit",
     "test": "bun test",
+    "eval": "bun eval/run.ts",
     "build:skill": "bun scripts/build-skill.mjs",
     "check:plugin": "bun scripts/check-plugin-externals.mjs",
     "sync-versions": "bun scripts/sync-versions.mjs",
@@ -24,7 +25,7 @@
     "typecheck": "tsc --project skills/ascendant/tsconfig.json --noEmit && tsc --project .opencode/tsconfig.json --noEmit",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
-    "format": "oxfmt skills/ascendant/tools tests scripts .opencode/plugins packages/ascendant-skills/bin packages/ascendant-skills/lib *.json .oxlintrc.json .oxfmtrc.json skills/ascendant/tsconfig.json .opencode/tsconfig.json",
+    "format": "oxfmt skills/ascendant/tools tests eval scripts .opencode/plugins packages/ascendant-skills/bin packages/ascendant-skills/lib *.json .oxlintrc.json .oxfmtrc.json skills/ascendant/tsconfig.json .opencode/tsconfig.json",
     "format:check": "bun run format -- --check"
   },
   "dependencies": {

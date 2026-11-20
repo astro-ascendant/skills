@@ -1,23 +1,180 @@
 import { Chart } from "astro-ascendant";
+import { Array as Arr, DateTime, Option, Order, pipe, Schema } from "effect";
 
-import { ONCE_ONLY_KP_EVENTS, type House, type KpEvent } from "./events.ts";
+import { House, isOnceOnly, type KpEvent } from "./events.ts";
 
-/**
- * The KP judgment as pure functions: the same facts, event and window always
- * give the same judgment. No clock, no file access, no model. Every rule names
- * the guidebook section it comes from, and every place where the guidebook is
- * silent and this file had to choose is marked "Engine choice".
- */
+export const KP_JUDGE_VERSION = "kp-judge/4";
 
-export const KP_JUDGE_VERSION = "kp-judge/2";
+export const Planet = Chart.Planets;
+export type Planet = typeof Planet.Type;
 
-export type Planet = Chart.Planets;
+export const KP_PLANETS: ReadonlyArray<Planet> = Planet.literals;
+export const KP_HOUSES: ReadonlyArray<House> = House.literals;
 
-const PLANETS: ReadonlyArray<Planet> = Chart.Planets.literals;
-const HOUSES: ReadonlyArray<House> = Chart.Houses.literals;
+export const EngineChoice = Schema.Literals([
+  "conducive-outranks-twelfth",
+  "own-star-is-tenant",
+  "neither-group-not-indicated",
+  "detrimental-house-at-stronger-level",
+  "detrimental-sub-only-detrimental",
+  "weakened-ranked-last",
+  "periods-by-rank-sum-then-start",
+  "confidence-capped-at-moderate",
+  "once-only-not-retimed",
+  "parenthesised-not-counted",
+  "mixed-allows-event",
+  "fit-score-promise-plus-period",
+  "three-past-events-minimum",
+  "flat-scores-uninformative",
+  "ties-favour-recorded",
+  "provisional-only-if-unique",
+  "high-coverage-weak-evidence",
+  "transit-in-significator-star",
+  "transit-sampled-at-fixed-step",
+]);
+export type EngineChoice = typeof EngineChoice.Type;
 
-const PRINCIPLES = "kp/fundamental-principles.md";
-const GROUPING = "kp/house-grouping.md";
+export const ENGINE_CHOICES = {
+  "conducive-outranks-twelfth":
+    "A house that is conducive and also 12th from another conducive house counts as conducive",
+  "own-star-is-tenant":
+    "A planet in its own star counts as a tenant of that star, so it is not self-strength",
+  "neither-group-not-indicated":
+    "A sub lord signifying neither a conducive nor a detrimental house gives not-indicated, not a denial",
+  "detrimental-house-at-stronger-level":
+    "A significator is weakened only when it signifies a detrimental house at a stronger level than any conducive house",
+  "detrimental-sub-only-detrimental":
+    "A significator is weakened when its sub lord signifies a detrimental house and no conducive house",
+  "weakened-ranked-last": "Weakened significators are ranked last, not removed",
+  "periods-by-rank-sum-then-start":
+    "Conjoined periods are ordered by the summed ranks of their three lords, then by start",
+  "confidence-capped-at-moderate":
+    "Confidence is moderate at most while the rules are not calibrated against outcomes",
+  "once-only-not-retimed":
+    "An event that happens once in a life gets no window after memory records it",
+  "parenthesised-not-counted":
+    "Houses the guidebook puts in parentheses are reported and counted neither for nor against",
+  "mixed-allows-event": "A mixed promise counts as allowing an event that did happen",
+  "fit-score-promise-plus-period":
+    "A past event scores one point when the promise allows it and one when its period is conjoined",
+  "three-past-events-minimum": "The birth time is checked only with three or more past events",
+  "flat-scores-uninformative":
+    "When every trial moment scores the same, past events say nothing about the birth time",
+  "ties-favour-recorded":
+    "The recorded birth time is consistent when no trial moment scores higher",
+  "provisional-only-if-unique":
+    "A provisional birth time is offered only when one trial moment alone scores best",
+  "high-coverage-weak-evidence":
+    "Past events inside conjoined periods are weak evidence when such periods cover most of the life",
+  "transit-in-significator-star":
+    "A period lord transits a significator when it is in a star whose lord is a significator; the sub is not checked",
+  "transit-sampled-at-fixed-step":
+    "Transits are read at a fixed step, so a window's edges are accurate to one step",
+} as const satisfies Record<EngineChoice, string>;
+
+export const GuidebookFile = Schema.Literals([
+  "kp/fundamental-principles.md",
+  "kp/house-grouping.md",
+]);
+export type GuidebookFile = typeof GuidebookFile.Type;
+
+export const Provenance = Schema.Union([
+  Schema.TaggedStruct("Guidebook", { file: GuidebookFile, section: Schema.String }),
+  Schema.TaggedStruct("Engine", { choice: EngineChoice }),
+]);
+export type Provenance = typeof Provenance.Type;
+
+const principles = (section: string): Provenance => ({
+  _tag: "Guidebook",
+  file: "kp/fundamental-principles.md",
+  section,
+});
+
+const houseGrouping = (section: string): Provenance => ({
+  _tag: "Guidebook",
+  file: "kp/house-grouping.md",
+  section,
+});
+
+export const engine = (choice: EngineChoice): Provenance => ({ _tag: "Engine", choice });
+
+export const RuleId = Schema.Literals([
+  "promise.self-strength-order",
+  "promise.conducive-house",
+  "promise.detrimental-house",
+  "promise.hierarchy",
+  "promise.no-rule",
+  "timing.conjoined-period",
+  "timing.no-conjoined-period",
+  "timing.skipped",
+  "timing.already-occurred",
+  "timing.transit-agreement",
+  "timing.no-transit-agreement",
+]);
+export type RuleId = typeof RuleId.Type;
+
+const RULE_SOURCES: Readonly<Record<RuleId, Provenance>> = {
+  "promise.self-strength-order": principles("Strengths of Significators"),
+  "promise.conducive-house": principles("Finding out promises in a chart"),
+  "promise.detrimental-house": principles("Finding out promises in a chart"),
+  "promise.hierarchy": principles("Finding out promises in a chart"),
+  "promise.no-rule": engine("neither-group-not-indicated"),
+  "timing.conjoined-period": principles("Timing Events"),
+  "timing.no-conjoined-period": principles("Timing Events"),
+  "timing.skipped": principles("Timing Events"),
+  "timing.already-occurred": engine("once-only-not-retimed"),
+  "timing.transit-agreement": principles("Timing Events"),
+  "timing.no-transit-agreement": principles("Timing Events"),
+};
+
+export const Polarity = Schema.Literals(["for", "against", "neutral"]);
+export type Polarity = typeof Polarity.Type;
+
+export const RuleFiring = Schema.Struct({
+  rule: RuleId,
+  source: Provenance,
+  polarity: Polarity,
+  detail: Schema.String,
+});
+export interface RuleFiring extends Schema.Schema.Type<typeof RuleFiring> {}
+
+const fire = (rule: RuleId, polarity: Polarity, detail: string): RuleFiring => ({
+  rule,
+  source: RULE_SOURCES[rule],
+  polarity,
+  detail,
+});
+
+const fireWhen = (
+  fires: boolean,
+  rule: RuleId,
+  polarity: Polarity,
+  detail: () => string,
+): Option.Option<RuleFiring> =>
+  fires ? Option.some(fire(rule, polarity, detail())) : Option.none();
+
+export const Level = Schema.Literals([1, 2, 3, 4]);
+export type Level = typeof Level.Type;
+const LEVELS: ReadonlyArray<Level> = Level.literals;
+
+export const ReadingOrder = Schema.Literals([1, 2, 3, 4]);
+export type ReadingOrder = typeof ReadingOrder.Type;
+
+const NORMAL_READING_ORDER: Readonly<Record<Level, ReadingOrder>> = { 1: 1, 2: 2, 3: 3, 4: 4 };
+const SELF_STRENGTH_READING_ORDER: Readonly<Record<Level, ReadingOrder>> = {
+  2: 1,
+  1: 2,
+  4: 3,
+  3: 4,
+};
+
+const levelsOf = <A extends Schema.Top>(item: A) =>
+  Schema.Struct({
+    level1: Schema.Array(item),
+    level2: Schema.Array(item),
+    level3: Schema.Array(item),
+    level4: Schema.Array(item),
+  });
 
 export interface Levels<A> {
   readonly level1: ReadonlyArray<A>;
@@ -26,521 +183,743 @@ export interface Levels<A> {
   readonly level4: ReadonlyArray<A>;
 }
 
-/** Everything the rules read from one KP D1. */
-export interface KpFacts {
-  readonly cuspSubLords: Readonly<Record<House, Planet>>;
-  readonly planetStarLords: Readonly<Record<Planet, Planet>>;
-  readonly planetSubLords: Readonly<Record<Planet, Planet>>;
-  readonly planetSignifications: Readonly<Record<Planet, Levels<House>>>;
-  readonly houseSignificators: Readonly<Record<House, Levels<Planet>>>;
-}
+export const KpFacts = Schema.Struct({
+  cuspSubLords: Schema.Record(House, Planet),
+  planetStarLords: Schema.Record(Planet, Planet),
+  planetSubLords: Schema.Record(Planet, Planet),
+  planetSignifications: Schema.Record(Planet, levelsOf(House)),
+  houseSignificators: Schema.Record(House, levelsOf(Planet)),
+});
+export interface KpFacts extends Schema.Schema.Type<typeof KpFacts> {}
 
-/** One antara (third level) period; `start` and `end` are epoch milliseconds. */
-export interface KpPeriod {
-  readonly dasha: Planet;
-  readonly bhukti: Planet;
-  readonly antara: Planet;
-  readonly start: number;
-  readonly end: number;
-}
+export const KpPeriod = Schema.Struct({
+  dasha: Planet,
+  bhukti: Planet,
+  antara: Planet,
+  start: Schema.DateTimeUtc,
+  end: Schema.DateTimeUtc,
+});
+export interface KpPeriod extends Schema.Schema.Type<typeof KpPeriod> {}
 
 export interface JudgeOptions {
-  /** Window start and end, epoch milliseconds. */
-  readonly from: number;
-  readonly to: number;
-  /** Most windows to return. */
+  readonly from: DateTime.Utc;
+  readonly to: DateTime.Utc;
   readonly limit: number;
-  /** Ruling planets of the judgment moment, when the caller supplies one. */
-  readonly rulingPlanets?: ReadonlyArray<Planet>;
-  /** Moments, epoch milliseconds, at which this event is recorded as having happened. */
-  readonly occurred?: ReadonlyArray<number>;
+  readonly rulingPlanets: Option.Option<ReadonlyArray<Planet>>;
+  readonly occurred: ReadonlyArray<DateTime.Utc>;
 }
 
-export type Level = 1 | 2 | 3 | 4;
-export type Role = "conducive" | "detrimental" | "optional" | "other";
-export type Verdict = "promised" | "mixed" | "denied" | "not-indicated";
-export type Lean = "favourable" | "balanced" | "unfavourable";
-export type Polarity = "for" | "against" | "neutral";
+export const Role = Schema.Literals(["conducive", "detrimental", "parenthesised", "other"]);
+export type Role = typeof Role.Type;
 
-export interface RuleFiring {
-  readonly rule: string;
-  /** Guidebook file and named section, or `engine` for an engine choice. */
-  readonly source: string;
-  readonly polarity: Polarity;
-  readonly detail: string;
-}
+export const HouseGroup = Schema.Struct({
+  conducive: Schema.Array(House),
+  parenthesised: Schema.Array(House),
+  detrimental: Schema.Array(House),
+});
+export interface HouseGroup extends Schema.Schema.Type<typeof HouseGroup> {}
 
-export interface HouseGroup {
-  readonly conducive: ReadonlyArray<House>;
-  readonly optional: ReadonlyArray<House>;
-  readonly detrimental: ReadonlyArray<House>;
-}
+export const Signification = Schema.Struct({
+  house: House,
+  level: Level,
+  readingOrder: ReadingOrder,
+  role: Role,
+});
+export interface Signification extends Schema.Schema.Type<typeof Signification> {}
 
-export interface Signification {
-  readonly house: House;
-  readonly level: Level;
-  /** 1 is strongest. Differs from `level` for a self-strength planet. */
-  readonly strength: Level;
-  readonly role: Role;
-}
+const TWELFTH_FROM: Readonly<Record<House, House>> = {
+  1: 12,
+  2: 1,
+  3: 2,
+  4: 3,
+  5: 4,
+  6: 5,
+  7: 6,
+  8: 7,
+  9: 8,
+  10: 9,
+  11: 10,
+  12: 11,
+};
 
-const sortNumbers = <A extends number>(values: Iterable<A>): Array<A> =>
-  [...new Set(values)].sort((left, right) => left - right);
+export const twelfthFrom = (house: House): House => TWELFTH_FROM[house];
 
-export const twelfthFrom = (house: House): House => (house === 1 ? 12 : ((house - 1) as House));
+const inHouseOrder = (houses: ReadonlyArray<House>): ReadonlyArray<House> =>
+  pipe(houses, Arr.dedupe, Arr.sort(Order.Number));
 
-/**
- * Conducive houses are the primary plus the supporting column. Detrimental
- * houses are the 12th from each conducive house
- * (`Good and Bad Houses for Specific Matters`).
- *
- * Engine choice: a house that is both conducive and 12th from another
- * conducive house stays conducive (for Service 6-7-10, the 6th is not counted
- * against the matter).
- */
+const conduciveOutranksTwelfth = (
+  twelfthHouses: ReadonlyArray<House>,
+  conducive: ReadonlyArray<House>,
+): ReadonlyArray<House> => Arr.difference(twelfthHouses, conducive);
+
 export function houseGroup(event: KpEvent): HouseGroup {
-  const conducive = sortNumbers([event.primary, ...event.supporting]);
-  const optional = sortNumbers(event.optional.filter((house) => !conducive.includes(house)));
-  const detrimental = sortNumbers(
-    conducive.map(twelfthFrom).filter((house) => !conducive.includes(house)),
-  );
-  return { conducive, optional, detrimental };
+  const conducive = inHouseOrder([event.primary, ...event.supporting]);
+  return {
+    conducive,
+    parenthesised: inHouseOrder(Arr.difference(event.parenthesised, conducive)),
+    detrimental: inHouseOrder(conduciveOutranksTwelfth(Arr.map(conducive, twelfthFrom), conducive)),
+  };
 }
 
-/**
- * A planet with no planet in its stars is a self-strength planet
- * (`Strengths of Significators`).
- *
- * Engine choice: a planet sitting in its own star counts as a tenant, so that
- * planet is not self-strength.
- */
-export function isSelfStrength(facts: KpFacts, planet: Planet): boolean {
-  return !PLANETS.some((other) => facts.planetStarLords[other] === planet);
-}
+const tenantsCountingOwnStar = (facts: KpFacts, planet: Planet): ReadonlyArray<Planet> =>
+  Arr.filter(KP_PLANETS, (tenant) => facts.planetStarLords[tenant] === planet);
 
-const NORMAL_ORDER: Readonly<Record<Level, Level>> = { 1: 1, 2: 2, 3: 3, 4: 4 };
-const SELF_STRENGTH_ORDER: Readonly<Record<Level, Level>> = { 2: 1, 1: 2, 4: 3, 3: 4 };
+export const isSelfStrength = (facts: KpFacts, planet: Planet): boolean =>
+  tenantsCountingOwnStar(facts, planet).length === 0;
 
 const roleOf = (group: HouseGroup, house: House): Role =>
-  group.conducive.includes(house)
+  Arr.contains(group.conducive, house)
     ? "conducive"
-    : group.detrimental.includes(house)
+    : Arr.contains(group.detrimental, house)
       ? "detrimental"
-      : group.optional.includes(house)
-        ? "optional"
+      : Arr.contains(group.parenthesised, house)
+        ? "parenthesised"
         : "other";
 
-const levelsOf = <A>(levels: Levels<A>): ReadonlyArray<readonly [Level, ReadonlyArray<A>]> => [
-  [1, levels.level1],
-  [2, levels.level2],
-  [3, levels.level3],
-  [4, levels.level4],
-];
+const byReadingOrderThenHouse: Order.Order<Signification> = Order.combine(
+  Order.mapInput(Order.Number, (entry: Signification) => entry.readingOrder),
+  Order.mapInput(Order.Number, (entry: Signification) => entry.house),
+);
 
-/**
- * The houses a planet signifies, strongest first, one entry per house at its
- * strongest level (`Finding Signification of Planets`, reordered for a
- * self-strength planet by `Strengths of Significators`).
- */
 export function significationsOf(
   facts: KpFacts,
   planet: Planet,
   group: HouseGroup,
 ): ReadonlyArray<Signification> {
-  const order = isSelfStrength(facts, planet) ? SELF_STRENGTH_ORDER : NORMAL_ORDER;
-  const best = new Map<House, Signification>();
-  for (const [level, houses] of levelsOf(facts.planetSignifications[planet])) {
-    for (const house of houses) {
-      const strength = order[level];
-      const current = best.get(house);
-      if (current === undefined || strength < current.strength) {
-        best.set(house, { house, level, strength, role: roleOf(group, house) });
-      }
-    }
-  }
-  return [...best.values()].sort(
-    (left, right) => left.strength - right.strength || left.house - right.house,
+  const readingOrder = isSelfStrength(facts, planet)
+    ? SELF_STRENGTH_READING_ORDER
+    : NORMAL_READING_ORDER;
+  const levels = facts.planetSignifications[planet];
+  return pipe(
+    LEVELS,
+    Arr.flatMap((level) =>
+      Arr.map(levels[`level${level}`], (house): Signification => ({
+        house,
+        level,
+        readingOrder: readingOrder[level],
+        role: roleOf(group, house),
+      })),
+    ),
+    Arr.sort(byReadingOrderThenHouse),
+    Arr.dedupeWith((first, later) => first.house === later.house),
   );
 }
 
-export interface PromiseJudgment {
-  readonly cusp: House;
-  readonly subLord: Planet;
-  readonly selfStrength: boolean;
-  readonly significations: ReadonlyArray<Signification>;
-  readonly verdict: Verdict;
-  /** Present only for a mixed verdict. */
-  readonly lean?: Lean;
-  readonly rules: ReadonlyArray<RuleFiring>;
-}
+export const Verdict = Schema.Literals(["promised", "mixed", "denied", "not-indicated"]);
+export type Verdict = typeof Verdict.Type;
 
-const strongest = (significations: ReadonlyArray<Signification>, role: Role): Level | undefined =>
-  significations.find((signification) => signification.role === role)?.strength;
+export const Lean = Schema.Literals(["favourable", "balanced", "unfavourable"]);
+export type Lean = typeof Lean.Type;
+
+export const VERDICT_ALLOWS_EVENT = {
+  promised: 1,
+  mixed: 1,
+  denied: 0,
+  "not-indicated": 0,
+} as const satisfies Record<Verdict, 0 | 1>;
+
+const promiseEvidence = {
+  cusp: House,
+  subLord: Planet,
+  selfStrength: Schema.Boolean,
+  significations: Schema.Array(Signification),
+};
+const promiseRules = { rules: Schema.Array(RuleFiring) };
+
+export const PromiseJudgment = Schema.Union([
+  Schema.Struct({ ...promiseEvidence, verdict: Schema.Literal("promised"), ...promiseRules }),
+  Schema.Struct({
+    ...promiseEvidence,
+    verdict: Schema.Literal("mixed"),
+    lean: Lean,
+    ...promiseRules,
+  }),
+  Schema.Struct({ ...promiseEvidence, verdict: Schema.Literal("denied"), ...promiseRules }),
+  Schema.Struct({ ...promiseEvidence, verdict: Schema.Literal("not-indicated"), ...promiseRules }),
+]);
+export type PromiseJudgment = typeof PromiseJudgment.Type;
+
+const strongest = (
+  significations: ReadonlyArray<Signification>,
+  role: Role,
+): Option.Option<ReadingOrder> =>
+  pipe(
+    Arr.findFirst(significations, (entry) => entry.role === role),
+    Option.map((entry) => entry.readingOrder),
+  );
 
 const housesWith = (significations: ReadonlyArray<Signification>, role: Role): string =>
-  significations
-    .filter((signification) => signification.role === role)
-    .map((signification) => `${signification.house} (level ${signification.level})`)
-    .join(", ");
+  pipe(
+    significations,
+    Arr.filter((entry) => entry.role === role),
+    Arr.map((entry) => `${entry.house} (level ${entry.level})`),
+    Arr.join(", "),
+  );
 
-/**
- * The sub lord of the primary cusp decides the promise
- * (`Finding out promises in a chart`, rules 1 to 4).
- *
- * Engine choice: the guidebook gives no rule for a sub lord that signifies
- * neither a conducive nor a detrimental house; that is reported as
- * `not-indicated`, not as a denial.
- */
+const leanOf = (conducive: ReadingOrder, detrimental: ReadingOrder): Lean =>
+  conducive < detrimental ? "favourable" : conducive > detrimental ? "unfavourable" : "balanced";
+
+const LEAN_POLARITY: Readonly<Record<Lean, Polarity>> = {
+  favourable: "for",
+  balanced: "neutral",
+  unfavourable: "against",
+};
+
 export function judgePromise(facts: KpFacts, event: KpEvent, group: HouseGroup): PromiseJudgment {
-  const source = `${PRINCIPLES}:Finding out promises in a chart`;
   const subLord = facts.cuspSubLords[event.primary];
   const selfStrength = isSelfStrength(facts, subLord);
   const significations = significationsOf(facts, subLord, group);
   const conducive = strongest(significations, "conducive");
   const detrimental = strongest(significations, "detrimental");
-  const rules: Array<RuleFiring> = [];
+  const mixed = Option.map(Option.all({ conducive, detrimental }), (strongestOf) => ({
+    ...strongestOf,
+    lean: leanOf(strongestOf.conducive, strongestOf.detrimental),
+  }));
 
-  if (selfStrength) {
-    rules.push({
-      rule: "promise.self-strength-order",
-      source: `${PRINCIPLES}:Strengths of Significators`,
-      polarity: "neutral",
-      detail: `${subLord} has no planet in its stars, so its levels are read in the order 2, 1, 4, 3`,
-    });
-  }
-  if (conducive !== undefined) {
-    rules.push({
-      rule: "promise.conducive-house",
-      source,
-      polarity: "for",
-      detail: `Sub lord ${subLord} of cusp ${event.primary} signifies conducive houses ${housesWith(significations, "conducive")}`,
-    });
-  }
-  if (detrimental !== undefined) {
-    rules.push({
-      rule: "promise.detrimental-house",
-      source,
-      polarity: "against",
-      detail: `Sub lord ${subLord} of cusp ${event.primary} signifies detrimental houses ${housesWith(significations, "detrimental")}`,
-    });
-  }
+  const rules = Arr.getSomes([
+    fireWhen(
+      selfStrength,
+      "promise.self-strength-order",
+      "neutral",
+      () => `${subLord} has no planet in its stars, so its levels are read in the order 2, 1, 4, 3`,
+    ),
+    fireWhen(
+      Option.isSome(conducive),
+      "promise.conducive-house",
+      "for",
+      () =>
+        `Sub lord ${subLord} of cusp ${event.primary} signifies conducive houses ${housesWith(significations, "conducive")}`,
+    ),
+    fireWhen(
+      Option.isSome(detrimental),
+      "promise.detrimental-house",
+      "against",
+      () =>
+        `Sub lord ${subLord} of cusp ${event.primary} signifies detrimental houses ${housesWith(significations, "detrimental")}`,
+    ),
+    fireWhen(
+      Option.isNone(conducive) && Option.isNone(detrimental),
+      "promise.no-rule",
+      "neutral",
+      () =>
+        `Sub lord ${subLord} signifies neither a conducive nor a detrimental house; the guidebook gives no rule for this case`,
+    ),
+    Option.map(mixed, (strongestOf) =>
+      fire(
+        "promise.hierarchy",
+        LEAN_POLARITY[strongestOf.lean],
+        `Strongest conducive signification is read ${strongestOf.conducive} and strongest detrimental is read ${strongestOf.detrimental} (1 is read first)`,
+      ),
+    ),
+  ]);
 
-  const base = { cusp: event.primary, subLord, selfStrength, significations };
-  if (conducive !== undefined && detrimental === undefined) {
-    return { ...base, verdict: "promised", rules };
-  }
-  if (conducive === undefined && detrimental !== undefined) {
-    return { ...base, verdict: "denied", rules };
-  }
-  if (conducive === undefined || detrimental === undefined) {
-    rules.push({
-      rule: "promise.no-rule",
-      source: "engine",
-      polarity: "neutral",
-      detail: `Sub lord ${subLord} signifies neither a conducive nor a detrimental house; the guidebook gives no rule for this case`,
-    });
-    return { ...base, verdict: "not-indicated", rules };
-  }
-
-  const lean: Lean =
-    conducive < detrimental ? "favourable" : conducive > detrimental ? "unfavourable" : "balanced";
-  rules.push({
-    rule: "promise.hierarchy",
-    source,
-    polarity: lean === "favourable" ? "for" : lean === "unfavourable" ? "against" : "neutral",
-    detail: `Strongest conducive signification is at strength ${conducive} and strongest detrimental at strength ${detrimental} (1 is strongest)`,
+  const evidence = { cusp: event.primary, subLord, selfStrength, significations };
+  return Option.match(mixed, {
+    onSome: ({ lean }): PromiseJudgment => ({ ...evidence, verdict: "mixed", lean, rules }),
+    onNone: (): PromiseJudgment =>
+      Option.isSome(conducive)
+        ? { ...evidence, verdict: "promised", rules }
+        : Option.isSome(detrimental)
+          ? { ...evidence, verdict: "denied", rules }
+          : { ...evidence, verdict: "not-indicated", rules },
   });
-  return { ...base, verdict: "mixed", lean, rules };
 }
 
-export type Criterion =
-  | "ruling-planet"
-  | "in-star-of-cusp-sub-lord"
-  | "is-cusp-sub-lord"
-  | "in-sub-of-untenanted-significator";
+export const Criterion = Schema.Literals([
+  "ruling-planet",
+  "in-star-of-cusp-sub-lord",
+  "is-cusp-sub-lord",
+  "in-sub-of-untenanted-significator",
+]);
+export type Criterion = typeof Criterion.Type;
 
-export type Weakness = "detrimental-house" | "detrimental-sub";
+export const Weakness = Schema.Literals([
+  "detrimental-house-at-stronger-level",
+  "detrimental-sub-only-detrimental",
+]);
+export type Weakness = typeof Weakness.Type;
 
-export interface Significator {
-  readonly rank: number;
-  readonly planet: Planet;
-  /** Conducive houses the planet signifies, each at its strongest level. */
-  readonly houses: ReadonlyArray<{ readonly house: House; readonly level: Level }>;
-  readonly detrimentalHouses: ReadonlyArray<{ readonly house: House; readonly level: Level }>;
-  readonly criteria: ReadonlyArray<Criterion>;
-  readonly weakened: ReadonlyArray<Weakness>;
-}
+const SignifiedHouse = Schema.Struct({ house: House, level: Level });
+interface SignifiedHouse extends Schema.Schema.Type<typeof SignifiedHouse> {}
+
+export const Significator = Schema.Struct({
+  rank: Schema.Int,
+  planet: Planet,
+  conduciveHouses: Schema.Array(SignifiedHouse),
+  detrimentalHouses: Schema.Array(SignifiedHouse),
+  criteria: Schema.Array(Criterion),
+  weakened: Schema.Array(Weakness),
+});
+export interface Significator extends Schema.Schema.Type<typeof Significator> {}
+
+type Unranked = Omit<Significator, "rank">;
 
 const housesSignifiedBy = (
   facts: KpFacts,
   planet: Planet,
   houses: ReadonlyArray<House>,
-): ReadonlyArray<{ readonly house: House; readonly level: Level }> =>
-  houses.flatMap((house) => {
-    const hit = levelsOf(facts.houseSignificators[house]).find(([, planets]) =>
-      planets.includes(planet),
-    );
-    return hit === undefined ? [] : [{ house, level: hit[0] }];
-  });
+): ReadonlyArray<SignifiedHouse> =>
+  Arr.getSomes(
+    Arr.map(houses, (house) =>
+      pipe(
+        Arr.findFirst(LEVELS, (level) =>
+          Arr.contains(facts.houseSignificators[house][`level${level}`], planet),
+        ),
+        Option.map((level): SignifiedHouse => ({ house, level })),
+      ),
+    ),
+  );
 
-const bestLevel = (houses: ReadonlyArray<{ readonly level: Level }>): number =>
-  houses.reduce((best, entry) => Math.min(best, entry.level), 5);
+const WEAKER_THAN_ANY_LEVEL = Math.max(...LEVELS) + 1;
 
-/**
- * Significators of the conducive houses (`Finding House Significators`),
- * ranked strongest first.
- *
- * Elimination comes first (`Selection of Significators`, methods 1 and 2), then
- * the ordered steps of `Selection of Fruitful significator: A Step by Step
- * Approach`. The order is lexicographic, with no numeric weights.
- *
- * Engine choices: a planet is marked `detrimental-house` only when it signifies
- * a detrimental house at a stronger level than any conducive house (nearly
- * every planet signifies some detrimental house, so the literal rule would
- * remove everything). A planet is marked `detrimental-sub` when its sub lord
- * signifies a detrimental house and no conducive house. Marked planets are
- * ranked last, not removed. Ties end on the fixed planet order.
- */
+const strongestLevel = (houses: ReadonlyArray<SignifiedHouse>): number =>
+  Arr.reduce(houses, WEAKER_THAN_ANY_LEVEL, (strongestSoFar, entry) =>
+    Math.min(strongestSoFar, entry.level),
+  );
+
+const detrimentalHouseAtStrongerLevel = (
+  conduciveHouses: ReadonlyArray<SignifiedHouse>,
+  detrimentalHouses: ReadonlyArray<SignifiedHouse>,
+): boolean => strongestLevel(detrimentalHouses) < strongestLevel(conduciveHouses);
+
+const detrimentalSubOnlyDetrimental = (
+  subLordConducive: ReadonlyArray<SignifiedHouse>,
+  subLordDetrimental: ReadonlyArray<SignifiedHouse>,
+): boolean => subLordDetrimental.length > 0 && subLordConducive.length === 0;
+
+const when = <A>(holds: boolean, value: A): Option.Option<A> =>
+  holds ? Option.some(value) : Option.none();
+
+const byNumber = (key: (entry: Unranked) => number): Order.Order<Unranked> =>
+  Order.mapInput(Order.Number, key);
+
+const lacks = (criterion: Criterion) => (entry: Unranked) =>
+  Arr.contains(entry.criteria, criterion) ? 0 : 1;
+
+const weakenedRankedLast = byNumber((entry) => entry.weakened.length);
+
+const guidebookSelectionSteps = Order.combineAll([
+  byNumber(lacks("ruling-planet")),
+  byNumber(lacks("in-star-of-cusp-sub-lord")),
+  byNumber(lacks("is-cusp-sub-lord")),
+  byNumber(lacks("in-sub-of-untenanted-significator")),
+]);
+
+const moreAndStrongerHousesFirst = Order.combineAll([
+  byNumber((entry) => -entry.conduciveHouses.length),
+  byNumber((entry) => strongestLevel(entry.conduciveHouses)),
+  byNumber((entry) => entry.detrimentalHouses.length),
+  byNumber((entry) => KP_PLANETS.indexOf(entry.planet)),
+]);
+
+const bySignificatorStrength: Order.Order<Unranked> = Order.combineAll([
+  weakenedRankedLast,
+  guidebookSelectionSteps,
+  moreAndStrongerHousesFirst,
+]);
+
 export function rankSignificators(
   facts: KpFacts,
   group: HouseGroup,
-  rulingPlanets: ReadonlyArray<Planet> | undefined,
+  rulingPlanets: Option.Option<ReadonlyArray<Planet>>,
 ): ReadonlyArray<Significator> {
-  const cuspSubLords = new Set(group.conducive.map((house) => facts.cuspSubLords[house]));
+  const cuspSubLords = Arr.map(group.conducive, (house) => facts.cuspSubLords[house]);
   const conduciveOf = (planet: Planet) => housesSignifiedBy(facts, planet, group.conducive);
   const detrimentalOf = (planet: Planet) => housesSignifiedBy(facts, planet, group.detrimental);
-  const significatorSet = new Set(PLANETS.filter((planet) => conduciveOf(planet).length > 0));
+  const significators = Arr.filter(KP_PLANETS, (planet) => conduciveOf(planet).length > 0);
 
-  const unranked = [...significatorSet].map((planet) => {
-    const houses = conduciveOf(planet);
-    const detrimentalHouses = detrimentalOf(planet);
-    const subLord = facts.planetSubLords[planet];
-
-    const criteria: Array<Criterion> = [];
-    if (rulingPlanets?.includes(planet)) criteria.push("ruling-planet");
-    if (cuspSubLords.has(facts.planetStarLords[planet])) criteria.push("in-star-of-cusp-sub-lord");
-    if (cuspSubLords.has(planet)) criteria.push("is-cusp-sub-lord");
-    if (significatorSet.has(subLord) && isSelfStrength(facts, subLord)) {
-      criteria.push("in-sub-of-untenanted-significator");
-    }
-
-    const weakened: Array<Weakness> = [];
-    if (bestLevel(detrimentalHouses) < bestLevel(houses)) weakened.push("detrimental-house");
-    if (detrimentalOf(subLord).length > 0 && conduciveOf(subLord).length === 0) {
-      weakened.push("detrimental-sub");
-    }
-
-    return { planet, houses, detrimentalHouses, criteria, weakened };
-  });
-
-  const has = (entry: (typeof unranked)[number], criterion: Criterion) =>
-    entry.criteria.includes(criterion) ? 0 : 1;
-  const key = (entry: (typeof unranked)[number]): ReadonlyArray<number> => [
-    entry.weakened.length,
-    has(entry, "ruling-planet"),
-    has(entry, "in-star-of-cusp-sub-lord"),
-    has(entry, "is-cusp-sub-lord"),
-    has(entry, "in-sub-of-untenanted-significator"),
-    -entry.houses.length,
-    bestLevel(entry.houses),
-    entry.detrimentalHouses.length,
-    PLANETS.indexOf(entry.planet),
-  ];
-  const compare = (left: ReadonlyArray<number>, right: ReadonlyArray<number>): number => {
-    for (let index = 0; index < left.length; index += 1) {
-      const difference = (left[index] ?? 0) - (right[index] ?? 0);
-      if (difference !== 0) return difference;
-    }
-    return 0;
-  };
-
-  return unranked
-    .sort((left, right) => compare(key(left), key(right)))
-    .map((entry, index) => ({ rank: index + 1, ...entry }));
+  return pipe(
+    significators,
+    Arr.map((planet): Unranked => {
+      const conduciveHouses = conduciveOf(planet);
+      const detrimentalHouses = detrimentalOf(planet);
+      const subLord = facts.planetSubLords[planet];
+      return {
+        planet,
+        conduciveHouses,
+        detrimentalHouses,
+        criteria: Arr.getSomes<ReadonlyArray<Option.Option<Criterion>>>([
+          when(Option.exists(rulingPlanets, Arr.contains(planet)), "ruling-planet"),
+          when(
+            Arr.contains(cuspSubLords, facts.planetStarLords[planet]),
+            "in-star-of-cusp-sub-lord",
+          ),
+          when(Arr.contains(cuspSubLords, planet), "is-cusp-sub-lord"),
+          when(
+            Arr.contains(significators, subLord) && isSelfStrength(facts, subLord),
+            "in-sub-of-untenanted-significator",
+          ),
+        ]),
+        weakened: Arr.getSomes<ReadonlyArray<Option.Option<Weakness>>>([
+          when(
+            detrimentalHouseAtStrongerLevel(conduciveHouses, detrimentalHouses),
+            "detrimental-house-at-stronger-level",
+          ),
+          when(
+            detrimentalSubOnlyDetrimental(conduciveOf(subLord), detrimentalOf(subLord)),
+            "detrimental-sub-only-detrimental",
+          ),
+        ]),
+      };
+    }),
+    Arr.sort(bySignificatorStrength),
+    Arr.map((entry, index): Significator => ({ rank: index + 1, ...entry })),
+  );
 }
 
-export interface Window {
-  readonly rank: number;
-  readonly dasha: Planet;
-  readonly bhukti: Planet;
-  readonly antara: Planet;
-  readonly start: number;
-  readonly end: number;
+export const Window = Schema.Struct({
+  rank: Schema.Int,
+  dasha: Planet,
+  bhukti: Planet,
+  antara: Planet,
+  start: Schema.DateTimeUtcFromString,
+  end: Schema.DateTimeUtcFromString,
+});
+export interface Window extends Schema.Schema.Type<typeof Window> {}
+
+export const TimingStatus = Schema.Literals([
+  "windows",
+  "no-conjoined-period",
+  "no-transit-agreement",
+  "skipped",
+  "already-occurred",
+]);
+export type TimingStatus = typeof TimingStatus.Type;
+
+export const Timing = Schema.Struct({
+  status: TimingStatus,
+  windows: Schema.Array(Window),
+  conjoinedPeriods: Schema.Int,
+  foundBeforeLimit: Schema.Int,
+  rules: Schema.Array(RuleFiring),
+});
+export interface Timing extends Schema.Schema.Type<typeof Timing> {}
+
+const untimed = (status: TimingStatus, rule: RuleFiring, conjoinedPeriods = 0): Timing => ({
+  status,
+  windows: [],
+  conjoinedPeriods,
+  foundBeforeLimit: 0,
+  rules: [rule],
+});
+
+export const SkySample = Schema.Struct({
+  at: Schema.DateTimeUtc,
+  starLords: Schema.Record(Planet, Planet),
+});
+export interface SkySample extends Schema.Schema.Type<typeof SkySample> {}
+
+export interface Sky {
+  readonly stepDays: number;
+  readonly samples: ReadonlyArray<SkySample>;
 }
 
-export type TimingStatus = "windows" | "no-conjoined-period" | "skipped" | "already-occurred";
+const lordsOf = (period: KpPeriod): ReadonlyArray<Planet> => [
+  period.dasha,
+  period.bhukti,
+  period.antara,
+];
 
-export interface Timing {
-  readonly status: TimingStatus;
-  readonly windows: ReadonlyArray<Window>;
-  /** Conjoined periods found in the window before `limit` was applied. */
-  readonly found: number;
-  readonly rules: ReadonlyArray<RuleFiring>;
+export const isConjoined = (significators: ReadonlyArray<Planet>, period: KpPeriod): boolean =>
+  Arr.every(lordsOf(period), (lord) => Arr.contains(significators, lord));
+
+export const lordsTransitSignificatorStars = (
+  significators: ReadonlyArray<Planet>,
+  period: KpPeriod,
+  sample: SkySample,
+): boolean =>
+  Arr.every(lordsOf(period), (lord) => Arr.contains(significators, sample.starLords[lord]));
+
+const lastIndexStartingAtOrBefore = (
+  startsInOrder: ReadonlyArray<number>,
+  moment: number,
+  low: number,
+  high: number,
+): number => {
+  if (low >= high) return low;
+  const middle = Math.ceil((low + high) / 2);
+  return (startsInOrder[middle] ?? Number.POSITIVE_INFINITY) <= moment
+    ? lastIndexStartingAtOrBefore(startsInOrder, moment, middle, high)
+    : lastIndexStartingAtOrBefore(startsInOrder, moment, low, middle - 1);
+};
+
+export interface TransitAgreement {
+  readonly sample: SkySample;
+  readonly sampleIndex: number;
+  readonly period: KpPeriod;
 }
 
-/**
- * The matter fructifies in the conjoined dasha, bhukti and antara of
- * significators of the house group (`Timing Events`). Only the part of a
- * period inside the window is returned.
- *
- * Engine choice: periods are ordered by the summed significator ranks of their
- * three lords, then by start; the guidebook says only to prefer the more
- * powerful significators.
- */
+export function transitAgreements(
+  significators: ReadonlyArray<Planet>,
+  periodsInTimeOrder: ReadonlyArray<KpPeriod>,
+  sky: Sky,
+): ReadonlyArray<TransitAgreement> {
+  const starts = Arr.map(periodsInTimeOrder, (period) => DateTime.toEpochMillis(period.start));
+  return Arr.getSomes(
+    Arr.map(sky.samples, (sample, sampleIndex) =>
+      pipe(
+        Arr.get(
+          periodsInTimeOrder,
+          lastIndexStartingAtOrBefore(
+            starts,
+            DateTime.toEpochMillis(sample.at),
+            0,
+            starts.length - 1,
+          ),
+        ),
+        Option.filter(
+          (period) =>
+            DateTime.isLessThanOrEqualTo(period.start, sample.at) &&
+            DateTime.isLessThan(sample.at, period.end) &&
+            isConjoined(significators, period) &&
+            lordsTransitSignificatorStars(significators, period, sample),
+        ),
+        Option.map((period): TransitAgreement => ({ sample, sampleIndex, period })),
+      ),
+    ),
+  );
+}
+
+export const timingPlanets = (significators: ReadonlyArray<Significator>): ReadonlyArray<Planet> =>
+  Arr.map(significators, (entry) => entry.planet);
+
+interface AgreementRun {
+  readonly period: KpPeriod;
+  readonly rankSum: number;
+  readonly first: DateTime.Utc;
+  readonly last: DateTime.Utc;
+  readonly lastSampleIndex: number;
+}
+
+const byRankSumThenStart: Order.Order<AgreementRun> = Order.combine(
+  Order.mapInput(Order.Number, (run: AgreementRun) => run.rankSum),
+  Order.mapInput(DateTime.Order, (run: AgreementRun) => run.first),
+);
+
 export function timeEvent(
   significators: ReadonlyArray<Significator>,
-  periods: ReadonlyArray<KpPeriod>,
-  options: JudgeOptions,
+  periodsInTimeOrder: ReadonlyArray<KpPeriod>,
+  sky: Sky,
+  options: Pick<JudgeOptions, "from" | "to" | "limit">,
 ): Timing {
-  const source = `${PRINCIPLES}:Timing Events`;
-  const rankOf = new Map(significators.map((entry) => [entry.planet, entry.rank]));
-  const scored = periods.flatMap((period) => {
-    const ranks = [period.dasha, period.bhukti, period.antara].map((lord) => rankOf.get(lord));
-    if (period.end <= options.from || period.start >= options.to) return [];
-    if (ranks.some((rank) => rank === undefined)) return [];
-    const score = ranks.reduce<number>((sum, rank) => sum + (rank ?? 0), 0);
-    return [{ period, score }];
-  });
-  scored.sort((left, right) => left.score - right.score || left.period.start - right.period.start);
+  const planets = timingPlanets(significators);
+  const rankSumOf = (period: KpPeriod): number =>
+    Arr.reduce(
+      lordsOf(period),
+      0,
+      (sum, lord) =>
+        sum +
+        pipe(
+          Arr.findFirst(significators, (entry) => entry.planet === lord),
+          Option.match({ onNone: () => 0, onSome: (entry) => entry.rank }),
+        ),
+    );
+  const conjoinedPeriods = Arr.filter(
+    periodsInTimeOrder,
+    (period) =>
+      DateTime.isGreaterThan(period.end, options.from) &&
+      DateTime.isLessThan(period.start, options.to) &&
+      isConjoined(planets, period),
+  ).length;
 
-  if (scored.length === 0) {
+  if (conjoinedPeriods === 0) {
+    return untimed(
+      "no-conjoined-period",
+      fire(
+        "timing.no-conjoined-period",
+        "against",
+        "No dasha, bhukti and antara in the window are all significators of the house group",
+      ),
+    );
+  }
+
+  const samplesInWindow = Arr.filter(
+    sky.samples,
+    (sample) =>
+      DateTime.isGreaterThanOrEqualTo(sample.at, options.from) &&
+      DateTime.isLessThan(sample.at, options.to),
+  );
+  const runs = Arr.reduce(
+    transitAgreements(planets, periodsInTimeOrder, { ...sky, samples: samplesInWindow }),
+    [] as ReadonlyArray<AgreementRun>,
+    (runsSoFar, agreement) =>
+      pipe(
+        Arr.last(runsSoFar),
+        Option.filter(
+          (run) =>
+            run.period === agreement.period && run.lastSampleIndex + 1 === agreement.sampleIndex,
+        ),
+        Option.match({
+          onNone: (): ReadonlyArray<AgreementRun> => [
+            ...runsSoFar,
+            {
+              period: agreement.period,
+              rankSum: rankSumOf(agreement.period),
+              first: agreement.sample.at,
+              last: agreement.sample.at,
+              lastSampleIndex: agreement.sampleIndex,
+            },
+          ],
+          onSome: (run): ReadonlyArray<AgreementRun> => [
+            ...Arr.dropRight(runsSoFar, 1),
+            { ...run, last: agreement.sample.at, lastSampleIndex: agreement.sampleIndex },
+          ],
+        }),
+      ),
+  );
+
+  const conjoinedRule = fire(
+    "timing.conjoined-period",
+    "for",
+    `${conjoinedPeriods} periods in the window have all three lords among the significators`,
+  );
+  if (runs.length === 0) {
     return {
-      status: "no-conjoined-period",
-      windows: [],
-      found: 0,
+      ...untimed(
+        "no-transit-agreement",
+        fire(
+          "timing.no-transit-agreement",
+          "against",
+          "On no sampled day of those periods do all three lords transit stars of significators",
+        ),
+        conjoinedPeriods,
+      ),
       rules: [
-        {
-          rule: "timing.no-conjoined-period",
-          source,
-          polarity: "against",
-          detail:
-            "No dasha, bhukti and antara in the window are all significators of the house group",
-        },
+        conjoinedRule,
+        fire(
+          "timing.no-transit-agreement",
+          "against",
+          "On no sampled day of those periods do all three lords transit stars of significators",
+        ),
       ],
     };
   }
-
   return {
     status: "windows",
-    found: scored.length,
-    windows: scored.slice(0, options.limit).map(({ period }, index) => ({
-      rank: index + 1,
-      dasha: period.dasha,
-      bhukti: period.bhukti,
-      antara: period.antara,
-      start: Math.max(period.start, options.from),
-      end: Math.min(period.end, options.to),
-    })),
+    conjoinedPeriods,
+    foundBeforeLimit: runs.length,
+    windows: pipe(
+      runs,
+      Arr.sort(byRankSumThenStart),
+      Arr.take(options.limit),
+      Arr.map(({ period, first, last }, index): Window => ({
+        rank: index + 1,
+        dasha: period.dasha,
+        bhukti: period.bhukti,
+        antara: period.antara,
+        start: first,
+        end: DateTime.min(
+          DateTime.min(DateTime.add(last, { days: sky.stepDays }), period.end),
+          options.to,
+        ),
+      })),
+    ),
     rules: [
-      {
-        rule: "timing.conjoined-period",
-        source,
-        polarity: "for",
-        detail: `${scored.length} periods in the window have all three lords among the significators`,
-      },
+      conjoinedRule,
+      fire(
+        "timing.transit-agreement",
+        "for",
+        `${runs.length} stretches inside those periods have all three lords transiting stars of significators`,
+      ),
     ],
   };
 }
 
-export type ConfidenceLevel = "moderate" | "low";
+export const ConfidenceLevel = Schema.Literals(["moderate", "low"]);
+export type ConfidenceLevel = typeof ConfidenceLevel.Type;
 
-export interface Confidence {
-  readonly level: ConfidenceLevel;
-  /** Always false: no rule here has been scored against real outcomes yet. */
-  readonly calibrated: false;
-  readonly basis: ReadonlyArray<string>;
-}
+const CONFIDENCE_CAPPED_AT: ConfidenceLevel = "moderate";
 
-/**
- * Engine choice, not a guidebook rule: a coarse level from what the judgment
- * rests on. It never reaches "high" because the birth time is not verified and
- * the rules are not calibrated.
- */
+export const Confidence = Schema.Struct({
+  level: ConfidenceLevel,
+  calibrated: Schema.Literal(false),
+  basis: Schema.Array(Schema.String),
+});
+export interface Confidence extends Schema.Schema.Type<typeof Confidence> {}
+
+export const BIRTH_TIME_NOT_VERIFIED = "Birth time not verified";
+
 function confidenceOf(
   promise: PromiseJudgment,
   timing: Timing,
-  rulingPlanets: boolean,
-  optional: boolean,
+  rulingPlanetsUsed: boolean,
+  parenthesisedNotCounted: boolean,
 ): Confidence {
-  const basis = ["Birth time not verified", "Transit and sookshma refinement not applied"];
-  let low = false;
-  if (promise.verdict === "not-indicated") {
-    basis.push("The guidebook gives no rule for this sub lord's significations");
-    low = true;
-  }
-  if (promise.verdict === "mixed" && promise.lean !== "favourable") {
-    basis.push(`Mixed promise leaning ${promise.lean}`);
-    low = true;
-  }
-  if (timing.status === "no-conjoined-period") {
-    basis.push("No conjoined period of significators in the window");
-    low = true;
-  }
-  if (!rulingPlanets) basis.push("Ruling planets not used to select significators");
-  if (optional) basis.push("The guidebook's parenthesised houses were not counted");
-  return { level: low ? "low" : "moderate", calibrated: false, basis };
-}
-
-export interface Judgment {
-  readonly school: "KP";
-  readonly engine: typeof KP_JUDGE_VERSION;
-  readonly event: {
-    readonly id: string;
-    readonly label: string;
-    readonly source: string;
-    readonly primary: House;
-    readonly conducive: ReadonlyArray<House>;
-    readonly optional: ReadonlyArray<House>;
-    readonly detrimental: ReadonlyArray<House>;
+  const doubts = Arr.getSomes([
+    when(
+      promise.verdict === "not-indicated",
+      "The guidebook gives no rule for this sub lord's significations",
+    ),
+    promise.verdict === "mixed" && promise.lean !== "favourable"
+      ? Option.some(`Mixed promise leaning ${promise.lean}`)
+      : Option.none(),
+    when(
+      timing.status === "no-conjoined-period",
+      "No conjoined period of significators in the window",
+    ),
+    when(
+      timing.status === "no-transit-agreement",
+      "The period lords never transit stars of significators inside a conjoined period",
+    ),
+  ]);
+  return {
+    level: doubts.length > 0 ? "low" : CONFIDENCE_CAPPED_AT,
+    calibrated: false,
+    basis: [
+      BIRTH_TIME_NOT_VERIFIED,
+      "Sookshma refinement not applied",
+      ...doubts,
+      ...Arr.getSomes([
+        when(!rulingPlanetsUsed, "Ruling planets not used to select significators"),
+        when(parenthesisedNotCounted, "The guidebook's parenthesised houses were not counted"),
+      ]),
+    ],
   };
-  readonly promise: PromiseJudgment;
-  readonly significators: ReadonlyArray<Significator>;
-  readonly timing: Timing;
-  readonly confidence: Confidence;
 }
 
-/** The whole KP judgment for one event and one time window. */
+export const Judgment = Schema.Struct({
+  school: Schema.Literal("KP"),
+  engine: Schema.Literal(KP_JUDGE_VERSION),
+  event: Schema.Struct({
+    id: Schema.String,
+    label: Schema.String,
+    source: Provenance,
+    primary: House,
+    ...HouseGroup.fields,
+  }),
+  promise: PromiseJudgment,
+  significators: Schema.Array(Significator),
+  timing: Timing,
+  confidence: Confidence,
+});
+export interface Judgment extends Schema.Schema.Type<typeof Judgment> {}
+
 export function judgeKp(
   facts: KpFacts,
   event: KpEvent,
-  periods: ReadonlyArray<KpPeriod>,
+  periodsInTimeOrder: ReadonlyArray<KpPeriod>,
+  sky: Sky,
   options: JudgeOptions,
 ): Judgment {
   const group = houseGroup(event);
   const promise = judgePromise(facts, event, group);
   const significators = rankSignificators(facts, group, options.rulingPlanets);
-  const timed: Timing =
-    promise.verdict === "denied" || promise.verdict === "not-indicated"
-      ? {
-          status: "skipped",
-          windows: [],
-          found: 0,
-          rules: [
-            {
-              rule: "timing.skipped",
-              source: `${PRINCIPLES}:Timing Events`,
-              polarity: "neutral",
-              detail: "Timing is judged only once the matter is promised",
-            },
-          ],
-        }
-      : timeEvent(significators, periods, options);
   const timing: Timing =
-    ONCE_ONLY_KP_EVENTS.has(event.id) && (options.occurred?.length ?? 0) > 0
-      ? {
-          status: "already-occurred",
-          windows: [],
-          found: 0,
-          rules: [
-            {
-              rule: "timing.already-occurred",
-              source: "engine",
-              polarity: "neutral",
-              detail: "The person's memory records this once-only event, so no window is offered",
-            },
-          ],
-        }
-      : timed;
+    isOnceOnly(event) && options.occurred.length > 0
+      ? untimed(
+          "already-occurred",
+          fire(
+            "timing.already-occurred",
+            "neutral",
+            "The person's memory records this once-only event, so no window is offered",
+          ),
+        )
+      : VERDICT_ALLOWS_EVENT[promise.verdict] === 0
+        ? untimed(
+            "skipped",
+            fire("timing.skipped", "neutral", "Timing is judged only once the matter is promised"),
+          )
+        : timeEvent(significators, periodsInTimeOrder, sky, options);
 
   return {
     school: "KP",
@@ -548,7 +927,7 @@ export function judgeKp(
     event: {
       id: event.id,
       label: event.label,
-      source: `${GROUPING}:${event.section}`,
+      source: houseGrouping(event.section),
       primary: event.primary,
       ...group,
     },
@@ -558,13 +937,8 @@ export function judgeKp(
     confidence: confidenceOf(
       promise,
       timing,
-      options.rulingPlanets !== undefined,
-      group.optional.length > 0,
+      Option.isSome(options.rulingPlanets),
+      group.parenthesised.length > 0,
     ),
   };
 }
-
-/** Houses in order, for building `KpFacts` records. */
-export const KP_HOUSES = HOUSES;
-/** Planets in the engine's fixed order, for building `KpFacts` records. */
-export const KP_PLANETS = PLANETS;

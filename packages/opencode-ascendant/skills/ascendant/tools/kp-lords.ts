@@ -1,4 +1,5 @@
 import { Chart } from "astro-ascendant";
+import { Array as Arr, Option, pipe } from "effect";
 
 const STAR_LORD_CYCLE = [
   "Ketu",
@@ -88,17 +89,29 @@ function normalizeLongitude(longitude: number): number {
   return ((longitude % 360) + 360) % 360;
 }
 
-function lordFromProportion(position: number, startLord: KpLord): KpLord {
+interface LordShare {
+  readonly lord: KpLord;
+  readonly within: number;
+}
+
+function lordAt(position: number, startLord: KpLord): LordShare {
   const start = STAR_LORD_CYCLE.indexOf(startLord);
-  let elapsed = 0;
-  for (let index = 0; index < STAR_LORD_CYCLE.length; index++) {
-    const planet = STAR_LORD_CYCLE[(start + index) % STAR_LORD_CYCLE.length];
-    if (planet === undefined) return startLord;
-    const span = VIMSHOTTARI_YEARS[planet] / 120;
-    if (position < elapsed + span) return planet;
-    elapsed += span;
-  }
-  return startLord;
+  return pipe(
+    STAR_LORD_CYCLE,
+    Arr.map((_, index) => STAR_LORD_CYCLE[(start + index) % STAR_LORD_CYCLE.length] ?? startLord),
+    Arr.reduce({ elapsed: 0, found: Option.none<LordShare>() }, (state, lord) => {
+      const share = VIMSHOTTARI_YEARS[lord] / 120;
+      return Option.isSome(state.found)
+        ? state
+        : position < state.elapsed + share
+          ? {
+              elapsed: state.elapsed,
+              found: Option.some({ lord, within: (position - state.elapsed) / share }),
+            }
+          : { elapsed: state.elapsed + share, found: state.found };
+    }),
+    (state) => Option.getOrElse(state.found, () => ({ lord: startLord, within: 0 })),
+  );
 }
 
 export function signLordOf(longitude: number): SignLord {
@@ -123,24 +136,13 @@ export function starLordOf(longitude: number): KpLord {
 
 export function subLordOf(longitude: number): KpLord {
   const offset = normalizeLongitude(longitude) % STAR_SPAN;
-  return lordFromProportion(offset / STAR_SPAN, starLordOf(longitude));
+  return lordAt(offset / STAR_SPAN, starLordOf(longitude)).lord;
 }
 
 export function subSubLordOf(longitude: number): KpLord {
   const offsetInStar = (normalizeLongitude(longitude) % STAR_SPAN) / STAR_SPAN;
-  const starLord = starLordOf(longitude);
-  const start = STAR_LORD_CYCLE.indexOf(starLord);
-  let elapsed = 0;
-  for (let index = 0; index < STAR_LORD_CYCLE.length; index++) {
-    const planet = STAR_LORD_CYCLE[(start + index) % STAR_LORD_CYCLE.length];
-    if (planet === undefined) return starLord;
-    const span = VIMSHOTTARI_YEARS[planet] / 120;
-    if (offsetInStar < elapsed + span) {
-      return lordFromProportion((offsetInStar - elapsed) / span, planet);
-    }
-    elapsed += span;
-  }
-  return starLord;
+  const sub = lordAt(offsetInStar, starLordOf(longitude));
+  return lordAt(sub.within, sub.lord).lord;
 }
 
 export function kpLordChain(longitude: number): KpLordChain {

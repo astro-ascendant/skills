@@ -9,10 +9,11 @@ import {
   SAV,
   Upapada,
 } from "astro-ascendant";
-import { DateTime, Effect, FileSystem, Path } from "effect";
+import { Array as Arr, DateTime, Effect, FileSystem, Path, pipe } from "effect";
 
 import {
   calculationContext,
+  ChartIncomplete,
   decodeMoment,
   KpAstroParamsLayer,
   type Latitude,
@@ -107,29 +108,28 @@ function calculationTable(calculation: ReturnType<typeof calculationContext>): s
  * only the rashi lord plus placement data.
  */
 function houseTable(chart: Chart.Chart): string {
-  const rows: Array<ReadonlyArray<string | number | boolean>> = [];
-  for (const house of Chart.Houses.literals) {
+  type Row = ReadonlyArray<string | number | boolean>;
+  const rows = Arr.flatMap(Chart.Houses.literals, (house): ReadonlyArray<Row> => {
     const houseData = chart.houses[house];
     const cusp = houseData.cusp;
-    const before = rows.length;
-
-    if (houseData.lagna !== null) {
-      const lagna = houseData.lagna;
-      rows.push([
-        house,
-        cusp,
-        lagna.name,
-        lagna.sign.lord,
-        lagna.longitude,
-        lagna.degree,
-        lagna.sign.name,
-        "-",
-        "-",
-      ]);
-    }
-
-    for (const planet of houseData.planets) {
-      rows.push([
+    const lagna = houseData.lagna;
+    const points: ReadonlyArray<Row> = [
+      ...(lagna !== null
+        ? [
+            [
+              house,
+              cusp,
+              lagna.name,
+              lagna.sign.lord,
+              lagna.longitude,
+              lagna.degree,
+              lagna.sign.name,
+              "-",
+              "-",
+            ],
+          ]
+        : []),
+      ...Arr.map(houseData.planets, (planet) => [
         house,
         cusp,
         planet.name,
@@ -139,13 +139,12 @@ function houseTable(chart: Chart.Chart): string {
         planet.sign.name,
         planet.in_sign.join(", ") || "-",
         planet.is_retrograde,
-      ]);
-    }
-
-    if (rows.length === before) {
-      rows.push([house, cusp, "-", houseData.signLord, "-", "-", houseData.sign, "-", "-"]);
-    }
-  }
+      ]),
+    ];
+    return points.length > 0
+      ? points
+      : [[house, cusp, "-", houseData.signLord, "-", "-", houseData.sign, "-", "-"]];
+  });
   return markdownTable(
     ["House", "Cusp", "Point", "Sign Lord", "Longitude", "Degree", "Sign", "Dignity", "Retrograde"],
     rows,
@@ -227,23 +226,23 @@ function formatDashaMarkdown(
       ]),
     ),
   ];
-  for (const period of dashas) {
-    sections.push(
+  return [
+    ...sections,
+    ...Arr.flatMap(dashas, (period) => [
       "",
       `## ${period.mahadasha} Mahadasha Antardashas (${periodSpan(period)})`,
       "",
       markdownTable(
         ["Antardasha", "Start", "End"],
-        period.antardashas.map((antardasha) => [
+        Arr.map(period.antardashas, (antardasha) => [
           antardasha.antardasha,
           DateTime.formatIso(antardasha.start),
           DateTime.formatIso(antardasha.end),
         ]),
       ),
-    );
-  }
-  sections.push("");
-  return sections.join("\n");
+    ]),
+    "",
+  ].join("\n");
 }
 
 /** Third Vimshottari level (Antara in KP usage): one section per Antardasha. */
@@ -252,24 +251,29 @@ function formatPratyantardashaMarkdown(
   calculation: ReturnType<typeof calculationContext>,
   dashas: VimshottariTimeline,
 ): string {
-  const sections = [`# ${title}`, "", calculationTable(calculation)];
-  for (const antardasha of dashas.flatMap((period) => period.antardashas)) {
-    sections.push(
-      "",
-      `## ${antardasha.mahadasha} / ${antardasha.antardasha} Pratyantardashas (${periodSpan(antardasha)})`,
-      "",
-      markdownTable(
-        ["Pratyantardasha", "Start", "End"],
-        Dasha.pratyantardashas(antardasha).map((pratyantardasha) => [
-          pratyantardasha.pratyantardasha,
-          DateTime.formatIso(pratyantardasha.start),
-          DateTime.formatIso(pratyantardasha.end),
-        ]),
-      ),
-    );
-  }
-  sections.push("");
-  return sections.join("\n");
+  return [
+    `# ${title}`,
+    "",
+    calculationTable(calculation),
+    ...pipe(
+      dashas,
+      Arr.flatMap((period) => period.antardashas),
+      Arr.flatMap((antardasha) => [
+        "",
+        `## ${antardasha.mahadasha} / ${antardasha.antardasha} Pratyantardashas (${periodSpan(antardasha)})`,
+        "",
+        markdownTable(
+          ["Pratyantardasha", "Start", "End"],
+          Arr.map(Dasha.pratyantardashas(antardasha), (pratyantardasha) => [
+            pratyantardasha.pratyantardasha,
+            DateTime.formatIso(pratyantardasha.start),
+            DateTime.formatIso(pratyantardasha.end),
+          ]),
+        ),
+      ]),
+    ),
+    "",
+  ].join("\n");
 }
 
 /** Fourth Vimshottari level: one section per Pratyantardasha. */
@@ -278,26 +282,30 @@ function formatSookshmaMarkdown(
   calculation: ReturnType<typeof calculationContext>,
   dashas: VimshottariTimeline,
 ): string {
-  const sections = [`# ${title}`, "", calculationTable(calculation)];
-  for (const antardasha of dashas.flatMap((period) => period.antardashas)) {
-    for (const pratyantardasha of Dasha.pratyantardashas(antardasha)) {
-      sections.push(
+  return [
+    `# ${title}`,
+    "",
+    calculationTable(calculation),
+    ...pipe(
+      dashas,
+      Arr.flatMap((period) => period.antardashas),
+      Arr.flatMap((antardasha) => Dasha.pratyantardashas(antardasha)),
+      Arr.flatMap((pratyantardasha) => [
         "",
         `## ${pratyantardasha.mahadasha} / ${pratyantardasha.antardasha} / ${pratyantardasha.pratyantardasha} Sookshmas (${periodSpan(pratyantardasha)})`,
         "",
         markdownTable(
           ["Sookshma", "Start", "End"],
-          Dasha.sookshmas(pratyantardasha).map((sookshma) => [
+          Arr.map(Dasha.sookshmas(pratyantardasha), (sookshma) => [
             sookshma.sookshma,
             DateTime.formatIso(sookshma.start),
             DateTime.formatIso(sookshma.end),
           ]),
         ),
-      );
-    }
-  }
-  sections.push("");
-  return sections.join("\n");
+      ]),
+    ),
+    "",
+  ].join("\n");
 }
 
 function formatSavMarkdown(result: Effect.Success<ReturnType<typeof SAV.calculate>>): string {
@@ -617,7 +625,7 @@ export const addPerson = Effect.fn("Ascendant.addPerson")(function* (storedPerso
   const lagnaSign = d1.houses[1].sign;
   const kpCusp1 = kpCuspAndPlanetLords(kpD1).cuspLords.find((cusp) => cusp.house === 1);
   if (kpCusp1 === undefined) {
-    return yield* Effect.die(new Error("KP chart generation returned no house 1 cusp"));
+    return yield* new ChartIncomplete({ message: "KP chart generation returned no house 1 cusp" });
   }
   const [charaKarakas, rashiDrishti, karakamsha, arudhaPadas, upapada, argala] = yield* Effect.all(
     [
