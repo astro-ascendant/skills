@@ -4,11 +4,13 @@ import { Command, Flag } from "effect/cli";
 
 import { PlatformLayer } from "./common.ts";
 import { failureReport } from "./errors.ts";
-import { AddPerson, CheckTransit, handlers, RulingPlanets } from "./toolkit.ts";
+import { AddPerson, CheckTransit, handlers, Judge, RulingPlanets } from "./toolkit.ts";
 import {
   ADD_PERSON_HELP,
   decodeInput,
+  events,
   home,
+  JUDGE_HELP,
   RULING_PLANETS_HELP,
   TRANSIT_HELP,
 } from "./workflows.ts";
@@ -172,11 +174,57 @@ const rulingPlanets = Command.make(
   ]),
 );
 
+const judge = Command.make(
+  "judge",
+  {
+    name,
+    event: Flag.String("event").pipe(
+      Flag.withDescription("Event id from the KP house-group table (see `ascendant events`)"),
+    ),
+    from: Flag.String("from").pipe(
+      Flag.withDescription("Offset-aware ISO 8601 start of the timing window"),
+    ),
+    years: Flag.Finite("years").pipe(
+      Flag.withDescription("Length of the timing window in years from 1 to 60 (default 10)"),
+      Flag.optional,
+    ),
+    limit: Flag.Finite("limit").pipe(
+      Flag.withDescription("Most timing windows to return from 1 to 50 (default 5)"),
+      Flag.optional,
+    ),
+    judgmentMoment: Flag.String("judgment-moment").pipe(
+      Flag.withDescription(
+        "Moment whose ruling planets select significators; leave out to judge without them",
+      ),
+      Flag.optional,
+    ),
+  },
+  (flags) =>
+    emit(
+      decodeInput(Judge.parametersSchema, compact(flags), JUDGE_HELP).pipe(
+        Effect.flatMap(handlers.ascendant_judge),
+      ),
+    ),
+).pipe(
+  Command.withDescription("Judge one event by KP rules: promise, significators and timing"),
+  Command.withExamples([
+    {
+      command:
+        'ascendant judge --name "Ada" --event marriage --from "2026-01-01T00:00:00+05:30" --years 5',
+      description: "Marriage promise and the strongest periods in the next five years",
+    },
+  ]),
+);
+
+const listEvents = Command.make("events", {}, () => emit(events())).pipe(
+  Command.withDescription("List the event ids that judge accepts"),
+);
+
 const ascendant = Command.make("ascendant", {}, () =>
   emit(home().pipe(Effect.provide(PlatformLayer))),
 ).pipe(
   Command.withDescription("Calculate saved Vedic astrology records and search transits"),
-  Command.withSubcommands([addPerson, transit, rulingPlanets]),
+  Command.withSubcommands([addPerson, transit, rulingPlanets, judge, listEvents]),
 );
 
 /** The `ascendant` command line. Provide platform services and run it. */

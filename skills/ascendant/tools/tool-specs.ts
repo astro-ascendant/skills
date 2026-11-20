@@ -1,6 +1,7 @@
 import { Chart, Transit } from "astro-ascendant";
 import { Schema } from "effect";
 
+import { KP_EVENT_IDS } from "./events.ts";
 import { Latitude, Longitude, OffsetMoment, PersonName, Sex } from "./contract.ts";
 
 export const AddPersonInput = Schema.Struct({
@@ -106,6 +107,41 @@ export const RulingPlanetsInput = Schema.Struct({
 });
 export type RulingPlanetsInput = typeof RulingPlanetsInput.Type;
 
+export const JudgeInput = Schema.Struct({
+  name: PersonName.pipe(Schema.annotate({ description: "Name of a saved person record" })),
+  event: Schema.Literals(KP_EVENT_IDS).pipe(
+    Schema.annotate({
+      description: "Event id from the KP house-group table (list them with `ascendant events`)",
+    }),
+  ),
+  from: OffsetMoment.pipe(
+    Schema.annotate({
+      description: "Start of the timing window in ISO 8601 form with Z or an explicit UTC offset",
+    }),
+  ),
+  years: Schema.optional(
+    Schema.Finite.pipe(
+      Schema.check(Schema.isBetween({ minimum: 1, maximum: 60 })),
+      Schema.annotate({ description: "Length of the timing window in years (default 10)" }),
+    ),
+  ),
+  limit: Schema.optional(
+    Schema.Finite.pipe(
+      Schema.check(Schema.isBetween({ minimum: 1, maximum: 50 })),
+      Schema.annotate({ description: "Most timing windows to return (default 5)" }),
+    ),
+  ),
+  judgmentMoment: Schema.optional(
+    OffsetMoment.pipe(
+      Schema.annotate({
+        description:
+          "Moment whose ruling planets select significators; leave out to judge without ruling planets",
+      }),
+    ),
+  ),
+});
+export type JudgeInput = typeof JudgeInput.Type;
+
 /**
  * Name, description and parameters of every tool. Plain `effect` only, so the
  * OpenCode plugin can use it; `toolkit.ts` wraps the same specs for `effect/ai`.
@@ -125,5 +161,11 @@ export const toolSpecs = {
     name: "ascendant_ruling_planets",
     description: "Read KP ruling planets for a judgment moment and place.",
     parameters: RulingPlanetsInput,
+  },
+  judge: {
+    name: "ascendant_judge",
+    description:
+      "Judge one event for a saved person by KP rules: promise, ranked significators and timing windows. Same input, same judgment.",
+    parameters: JudgeInput,
   },
 } as const;

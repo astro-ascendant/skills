@@ -3,7 +3,7 @@ import { Tool, Toolkit } from "effect/ai";
 
 import { CommandError } from "./errors.ts";
 import { toolSpecs } from "./tool-specs.ts";
-import { addPerson, checkTransit, rulingPlanets } from "./workflows.ts";
+import { addPerson, checkTransit, judge, rulingPlanets } from "./workflows.ts";
 
 /**
  * The tools as an `effect/ai` Toolkit, for the CLI and agent scripts. The
@@ -34,11 +34,19 @@ export const RulingPlanets = Tool.make(toolSpecs.rulingPlanets.name, {
   failure: CommandError,
 });
 
-export const AscendantToolkit = Toolkit.make(AddPerson, CheckTransit, RulingPlanets);
+export const Judge = Tool.make(toolSpecs.judge.name, {
+  description: toolSpecs.judge.description,
+  parameters: toolSpecs.judge.parameters,
+  success: Output,
+  failure: CommandError,
+});
+
+export const AscendantToolkit = Toolkit.make(AddPerson, CheckTransit, RulingPlanets, Judge);
 
 /** Handlers for the toolkit: typed input in, typed `CommandError` out. */
 export const handlers = AscendantToolkit.of({
   ascendant_add_person: (input) => addPerson(input),
   ascendant_check_transit: (input) => checkTransit(input),
   ascendant_ruling_planets: (input) => rulingPlanets(input),
+  ascendant_judge: (input) => judge(input),
 });

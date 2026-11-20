@@ -12,8 +12,14 @@ import {
   readStoredPerson,
 } from "./common.ts";
 import { CommandError } from "./errors.ts";
+import { judgeWorkflow, listEvents } from "./judge.ts";
 import { rulingPlanetsWorkflow } from "./ruling-planets.ts";
-import type { AddPersonInput, CheckTransitInput, RulingPlanetsInput } from "./tool-specs.ts";
+import type {
+  AddPersonInput,
+  CheckTransitInput,
+  JudgeInput,
+  RulingPlanetsInput,
+} from "./tool-specs.ts";
 
 export const ADD_PERSON_HELP =
   'Run `ascendant add-person --name "<name>" --moment "<ISO-8601>" --latitude <latitude> --longitude <longitude> [--sex Male|Female]`';
@@ -21,6 +27,8 @@ export const TRANSIT_HELP =
   'Run `ascendant transit --name "<name>" --moment "<ISO-8601>" --planet <graha> [--school kp|parashari] [--direction forward|backward] [--kinds sign-ingress,...] [--count <1-100>] [--target-longitude <0-360>] [--house <1-12>] [--max-years <years>] [--precision-minutes <minutes>]`';
 export const RULING_PLANETS_HELP =
   'Run `ascendant ruling-planets --moment "<ISO-8601>" (--name "<name>" | --latitude <latitude> --longitude <longitude>)`';
+export const JUDGE_HELP =
+  'Run `ascendant judge --name "<name>" --event <event-id> --from "<ISO-8601>" [--years <1-60>] [--limit <1-50>] [--judgment-moment "<ISO-8601>"]`; list event ids with `ascendant events`';
 
 const KpLayer = Layer.mergeAll(PlatformLayer, KpAstroParamsLayer, Swisseph.SwissephLayer);
 
@@ -194,6 +202,23 @@ export const rulingPlanets = Effect.fn("Ascendant.rulingPlanetsTool")(function* 
     Effect.provide(KpLayer),
   );
 });
+
+/** The KP judgment for one saved person, event and time window. */
+export const judge = Effect.fn("Ascendant.judgeTool")(function* (input: JudgeInput) {
+  return yield* judgeWorkflow(input).pipe(
+    Effect.mapError((error) =>
+      domainError(error, input.name, {
+        code: "JUDGE_FAILED",
+        message: "Unable to judge the event",
+        help: "Verify the saved person record, the event id and the window, then retry",
+      }),
+    ),
+    Effect.provide(KpLayer),
+  );
+});
+
+/** Event ids the judge accepts, and the guidebook rows it refuses. */
+export const events = () => Effect.succeed(listEvents());
 
 /** Saved people in `./persons`, with the next commands to try. */
 export const home = Effect.fn("Ascendant.home")(function* () {

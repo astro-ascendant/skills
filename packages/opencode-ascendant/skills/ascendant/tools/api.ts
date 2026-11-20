@@ -4,13 +4,16 @@ import { Console, Effect } from "effect";
 
 import { AppLayer, KpAstroParamsLayer, PlatformLayer } from "./common.ts";
 import { failureReport } from "./errors.ts";
-import { AddPersonInput, CheckTransitInput, RulingPlanetsInput } from "./tool-specs.ts";
+import { AddPersonInput, CheckTransitInput, JudgeInput, RulingPlanetsInput } from "./tool-specs.ts";
 import {
   ADD_PERSON_HELP,
   addPerson as addPersonWorkflow,
   checkTransit as checkTransitWorkflow,
   decodeInput,
+  events as eventsWorkflow,
   home as homeWorkflow,
+  JUDGE_HELP,
+  judge as judgeWorkflow,
   RULING_PLANETS_HELP,
   rulingPlanets as rulingPlanetsWorkflow,
   TRANSIT_HELP,
@@ -34,6 +37,12 @@ export const rulingPlanets = (input: typeof RulingPlanetsInput.Encoded) =>
   decodeInput(RulingPlanetsInput, input, RULING_PLANETS_HELP).pipe(
     Effect.flatMap(rulingPlanetsWorkflow),
   );
+
+export const judge = (input: typeof JudgeInput.Encoded) =>
+  decodeInput(JudgeInput, input, JUDGE_HELP).pipe(Effect.flatMap(judgeWorkflow));
+
+/** Event ids `judge` accepts, and the guidebook rows it refuses. */
+export const events = () => eventsWorkflow();
 
 /** Saved people in `./persons`. */
 export const home = () => homeWorkflow().pipe(Effect.provide(PlatformLayer));
