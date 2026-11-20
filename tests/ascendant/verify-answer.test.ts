@@ -16,7 +16,7 @@ import { addPersonNamed, inTempWorkspace } from "../support.ts";
 const utc = (iso: string): DateTime.Utc => DateTime.makeUnsafe(iso);
 
 const facts: VerifiableFacts = {
-  coverage: [Option.some([])],
+  ranking: [Option.some([])],
   knownFactIds: ["kp.cusp.7", "par.house.7", "par.planet.Venus"],
   periods: [
     {
@@ -232,44 +232,98 @@ describe("verify answer", () => {
     ).toEqual(["no-evidence"]);
   });
 
-  it("asks for a candidate from every larger period in the stretch searched", () => {
-    const block = (id: string, start: string, end: string) => ({
-      id,
-      start: utc(start),
-      end: utc(end),
-    });
-    const details = (coverage: VerifiableFacts["coverage"]) =>
-      verifyAnswer(answer("I see marriage."), worksheet(), { ...facts, coverage }).problems.map(
+  it("holds the candidates to the ranking of the stretch searched", () => {
+    const details = (
+      ranking: VerifiableFacts["ranking"],
+      part: Partial<Worksheet["parts"][number]> = {},
+    ) =>
+      verifyAnswer(answer("I see marriage."), worksheet(part), { ...facts, ranking }).problems.map(
         (problem) => problem.detail,
       );
+    const ranked = (
+      rows: ReadonlyArray<readonly [string, "weak" | "fair" | "strong"]>,
+    ): VerifiableFacts["ranking"] => [
+      Option.some(rows.map(([id, rating], index) => ({ id, rating, rank: index + 1 }))),
+    ];
+
     expect(details([Option.none()])).toEqual([
-      '"When will she marry?" does not say which stretch of life was searched; give searched.from and searched.to as YYYY-MM-DD',
+      '"When will she marry?" cannot be compared with the ranking; give searched (from and to as YYYY-MM-DD), topic (the event id or houses you asked the evidence for) and depth',
     ]);
     expect(
-      details([
-        Option.some([
-          block("kp:Moon-Venus", "2030-11-16T18:30:00Z", "2031-05-27T16:03:00Z"),
-          block("kp:Moon-Sun", "2031-05-27T16:03:00Z", "2031-11-26T16:03:00Z"),
+      details(
+        ranked([
+          ["Moon-Venus", "strong"],
+          ["Moon-Sun", "fair"],
         ]),
-      ]),
+      ),
     ).toEqual([]);
     expect(
-      details([
-        Option.some([
-          block("kp:Moon-Venus", "2030-11-16T18:30:00Z", "2031-05-27T16:03:00Z"),
-          block("kp:Mars-Mars", "2032-01-01T00:00:00Z", "2032-06-01T00:00:00Z"),
-          block("kp:Mars-Rahu", "2032-06-01T00:00:00Z", "2033-06-01T00:00:00Z"),
+      details(
+        ranked([
+          ["Moon-Venus", "strong"],
+          ["Moon-Mars", "strong"],
+          ["Moon-Sun", "fair"],
+          ["Moon-Rahu", "fair"],
         ]),
-      ]),
+      ),
     ).toEqual([
-      '"When will she marry?" compares no candidate from kp:Mars-Mars, kp:Mars-Rahu; every larger period in the stretch searched needs one, even when its main lord looks weak',
+      '"When will she marry?" leaves out Moon-Mars; the 3 strongest windows of the ranking must be among the candidates',
+    ]);
+    expect(
+      details(
+        ranked([
+          ["Moon-Venus", "fair"],
+          ["Moon-Sun", "fair"],
+        ]),
+      ),
+    ).toEqual([
+      '"When will she marry?" rates Moon-Venus strong where the ranking gives fair; say in adjusted what the ranking does not count that justifies the change, or use its rating',
+    ]);
+    expect(
+      details(
+        ranked([
+          ["Moon-Venus", "fair"],
+          ["Moon-Sun", "fair"],
+        ]),
+        {
+          candidates: [
+            {
+              ...candidates[0],
+              adjusted: "Venus is exalted in the D9 and the ranking does not read the D9.",
+            } as Candidates[number],
+            candidates[1] as Candidates[number],
+          ],
+        },
+      ),
+    ).toEqual([]);
+    expect(
+      details(
+        ranked([
+          ["Moon-Venus", "weak"],
+          ["Moon-Sun", "fair"],
+        ]),
+      ),
+    ).toEqual([
+      '"When will she marry?" rates Moon-Venus strong where the ranking gives weak; a rating may move one step at most',
     ]);
     expect(
       problemKinds(answer("I see marriage."), worksheet(untimed), {
         ...facts,
-        coverage: [Option.none()],
+        ranking: [Option.none()],
       }),
     ).toEqual([]);
+  });
+
+  it("flags an answer that sounds surer than its worksheet", () => {
+    const low = worksheet({ confidence: "low" });
+    expect(problemKinds(answer("I am moderately sure of the timing."), low)).toEqual([
+      "confidence-mismatch",
+    ]);
+    expect(problemKinds(answer("I am not very sure of the timing."), low)).toEqual([
+      "confidence-mismatch",
+    ]);
+    expect(problemKinds(answer("I hold this with low confidence."), low)).toEqual([]);
+    expect(problemKinds(answer("I am moderately sure of the timing."))).toEqual([]);
   });
 
   it("keeps each school's evidence on its own calendar", () => {
@@ -369,7 +423,6 @@ describe("verify answer", () => {
 describe("evidence and verify workflows", () => {
   const name = "Verify Subject";
   const window = { from: "2010-01-01T00:00:00+05:30", to: "2014-01-01T00:00:00+05:30" };
-  const isoDate = (iso: string) => iso.slice(0, 10);
   const monthAndYear = (iso: string) =>
     DateTime.formatUtc(utc(iso), { locale: "en-GB", month: "long", year: "numeric" });
 
@@ -391,33 +444,45 @@ describe("evidence and verify workflows", () => {
         expect(found.periods.depth).toBe("bhukti");
         expect(found.transits.length).toBeGreaterThan(0);
 
-        const period = found.periods.kp[1];
-        const other = found.periods.kp[2];
+        const top = found.ranking.rows.slice(0, 3);
+        const period = found.ranking.rows[0];
+        const other = found.ranking.rows[1];
         expect(period?.id).toMatch(/^kp:/);
         expect(found.periods.parashari[1]?.id).toMatch(/^par:/);
         const transit = found.transits[1];
         const pair: Candidates = [
           {
             periods: [period?.id ?? ""],
-            chart: "strong",
+            chart: period?.rating ?? "weak",
             practicality: "ordinary",
             for: ["kp.cusp.7"],
             against: [],
             chosen: true,
           },
-          {
-            periods: [other?.id ?? ""],
-            chart: "fair",
-            practicality: "ordinary",
+          ...top.slice(1).map((row) => ({
+            periods: [row.id],
+            chart: row.rating,
+            practicality: "ordinary" as const,
             for: ["kp.significators.7"],
             against: [],
-          },
+          })),
         ];
 
-        expect(found.shortlist.unit).toBe("bhukti");
-        expect(found.shortlist.kp.map((block) => block.id)).toContain(period?.id);
-        expect(found.shortlist.kp[0]?.rows[0]?.id).toMatch(/^kp:[A-Za-z]+-[A-Za-z]+-[A-Za-z]+$/);
-        expect(found.shortlist.parashari[0]?.id).toMatch(/^par:/);
+        expect(found.ranking.depth).toBe("bhukti");
+        expect(found.ranking.rows.map((row) => row.rank)).toEqual(
+          found.ranking.rows.map((_, index) => index + 1),
+        );
+        const totals = found.ranking.rows.map((row) => row.total);
+        expect(totals).toEqual([...totals].sort((left, right) => right - left));
+        expect(found.ranking.rows.map((row) => row.id).sort()).toEqual(
+          found.periods.kp.map((row) => row.id).sort(),
+        );
+        const again = yield* decodeInput(
+          EvidenceInput,
+          { name, event: "marriage", ...window },
+          "help",
+        ).pipe(Effect.flatMap(evidence));
+        expect(again.ranking).toEqual(found.ranking);
 
         const compared = yield* decodeInput(
           EvidenceInput,
@@ -454,7 +519,9 @@ describe("evidence and verify workflows", () => {
             against: ["par.planet.Venus"],
             periods: [period?.id ?? ""],
             candidates: pair,
-            searched: { from: isoDate(period?.start ?? ""), to: isoDate(other?.end ?? "") },
+            searched: { from: window.from.slice(0, 10), to: window.to.slice(0, 10) },
+            topic: { event: "marriage" },
+            depth: "bhukti",
           },
         );
         expect(faithful).toMatchObject({ ok: true, factsChecked: 7, problems: [] });
@@ -464,12 +531,11 @@ describe("evidence and verify workflows", () => {
           against: [],
           periods: [period?.id ?? ""],
           candidates: pair,
-          searched: { from: "1995-01-01", to: "2040-01-01" },
           confidence: "low",
         });
         expect(drifted.problems.map((problem) => problem.kind).sort()).toEqual([
-          "coverage-missing",
           "date-not-in-period",
+          "ranking-ignored",
           "unknown-fact",
           "unknown-fact",
           "unknown-fact",

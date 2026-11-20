@@ -16,7 +16,6 @@ import {
   Fact,
   antaraRunningAt,
   CandidateRow,
-  coverageBlocks,
   forHouses,
   jaiminiFacts,
   kpHouseOf,
@@ -31,20 +30,20 @@ import {
   resolvePeriod,
   runningPeriods,
   sharedWithRecord,
-  shortlist,
-  ShortlistBlock,
   signOf,
   SLOW_PLANETS,
   strictRuleFact,
   transitFacts,
   vargaFacts,
   type Calendar,
+  type Depth,
   type SignSample,
   type Timelines,
   type SlowPlanet,
 } from "./evidence.ts";
 import { kpFactsOf, readMemoryOrEmpty, UnknownEvent } from "./judge.ts";
 import { houseGroup } from "./kp-judge.ts";
+import { RankedWindow, rankWindows, RANKING_BASIS, type RankTopic } from "./ranking.ts";
 import type { EvidenceInput, VerifyInput } from "./tool-specs.ts";
 import { Verification, verifyAnswer } from "./verify-answer.ts";
 
@@ -187,6 +186,73 @@ const slowTransitFacts = Effect.fn("Ascendant.slowTransitFacts")(function* (
   return Arr.flatten(perPlanet);
 });
 
+const MAX_RANKED_ROWS = 15;
+
+const topicOf = (
+  event: Option.Option<{ readonly primary: House }>,
+  group: Option.Option<{
+    readonly conducive: ReadonlyArray<House>;
+    readonly detrimental: ReadonlyArray<House>;
+  }>,
+  asked: ReadonlyArray<House>,
+): Option.Option<RankTopic> =>
+  Option.match(Option.all({ event, group }), {
+    onSome: ({ event: found, group: houses }) =>
+      Option.some({
+        conducive: houses.conducive,
+        detrimental: houses.detrimental,
+        primary: found.primary,
+      }),
+    onNone: () =>
+      Option.map(Arr.head(asked), (primary) => ({ conducive: asked, detrimental: [], primary })),
+  });
+
+const lordsAtRecordedEvents = (charts: Charts, calendar: Calendar): ReadonlyArray<string> =>
+  pipe(
+    [...charts.memory.events, ...charts.memory.notes],
+    Arr.flatMap((entry) =>
+      Option.match(
+        parsePeriodId(
+          antaraRunningAt(charts.timelines[calendar], calendar, entry.noonUtc, charts.birth),
+        ),
+        { onNone: () => [], onSome: (parsed) => parsed.lords },
+      ),
+    ),
+    Arr.dedupe,
+  );
+
+const rankingFor = Effect.fn("Ascendant.rankingFor")(function* (
+  charts: Charts,
+  topic: RankTopic,
+  window: { readonly start: DateTime.Utc; readonly end: DateTime.Utc },
+  depth: Depth,
+) {
+  const days = Math.min(
+    (DateTime.toEpochMillis(window.end) - DateTime.toEpochMillis(window.start)) / MILLIS_PER_DAY,
+    MAX_TRANSIT_YEARS * 365.25,
+  );
+  const moments = Arr.makeBy(Math.max(1, Math.ceil(days / TRANSIT_STEP_DAYS)), (index) =>
+    DateTime.add(window.start, { days: index * TRANSIT_STEP_DAYS }),
+  );
+  return rankWindows({
+    timelines: charts.timelines,
+    depth,
+    window,
+    birth: charts.birth,
+    facts: charts.kpFacts,
+    rashi: charts.rashi,
+    topic,
+    slowSamples: {
+      Jupiter: yield* signSamples("Jupiter", moments, charts.kpCusps),
+      Saturn: yield* signSamples("Saturn", moments, charts.kpCusps),
+    },
+    lordsAtRecordedEvents: {
+      kp: lordsAtRecordedEvents(charts, "kp"),
+      par: lordsAtRecordedEvents(charts, "par"),
+    },
+  });
+});
+
 export const EvidenceResult = Schema.Struct({
   person: Schema.Struct({ name: Schema.String, birth: Schema.DateTimeUtcFromString }),
   basis: Schema.Array(Schema.String),
@@ -201,11 +267,11 @@ export const EvidenceResult = Schema.Struct({
     kp: Schema.Array(PeriodRow),
     parashari: Schema.Array(PeriodRow),
   }),
-  shortlist: Schema.Struct({
-    unit: Schema.String,
-    note: Schema.String,
-    kp: Schema.Array(ShortlistBlock),
-    parashari: Schema.Array(ShortlistBlock),
+  ranking: Schema.Struct({
+    depth: Schema.String,
+    basis: Schema.Array(Schema.String),
+    windows: Schema.Int,
+    rows: Schema.Array(RankedWindow),
   }),
   transits: Schema.Array(Fact),
   candidates: Schema.Array(CandidateRow),
@@ -265,22 +331,13 @@ export const evidenceWorkflow = Effect.fn("Ascendant.evidence")(function* (input
       onNone: () => [],
       onSome: (span) => periodRows(charts.timelines[calendar], calendar, depth, span, charts.birth),
     });
-  const shortlistIn = (calendar: Calendar) =>
-    Option.match(window, {
-      onNone: () => ({ unit: "none", blocks: [] as ReadonlyArray<ShortlistBlock> }),
-      onSome: (span) =>
-        shortlist(
-          charts.timelines[calendar],
-          calendar,
-          span,
-          charts.birth,
-          charts.kpFacts,
-          charts.rashi,
-          houses,
-        ),
-    });
-  const kpShortlist = shortlistIn("kp");
-  const parashariShortlist = shortlistIn("par");
+  const ranked = yield* Option.match(
+    Option.all({ span: window, topic: topicOf(event, group, input.houses ?? []) }),
+    {
+      onNone: () => Effect.succeed([] as ReadonlyArray<RankedWindow>),
+      onSome: ({ span, topic }) => rankingFor(charts, topic, span, depth),
+    },
+  );
   const kpRows = rowsIn("kp");
   const parashariRows = rowsIn("par");
   const transits = yield* Option.match(window, {
@@ -385,11 +442,11 @@ export const evidenceWorkflow = Effect.fn("Ascendant.evidence")(function* (input
         kp: Arr.take(kpRows, MAX_PERIOD_ROWS),
         parashari: Arr.take(parashariRows, MAX_PERIOD_ROWS),
       },
-      shortlist: {
-        unit: kpShortlist.unit,
-        note: "Every larger period that covers the stretch asked for, with the periods inside it. linkedLords are the lords that touch the houses asked for in that school. Compare at least one candidate from every larger period, including one whose main lord looks weak",
-        kp: kpShortlist.blocks,
-        parashari: parashariShortlist.blocks,
+      ranking: {
+        depth,
+        basis: ranked.length === 0 ? [] : RANKING_BASIS,
+        windows: ranked.length,
+        rows: Arr.take(ranked, MAX_RANKED_ROWS),
       },
       transits,
       candidates,
@@ -482,25 +539,35 @@ export const verifyWorkflow = Effect.fn("Ascendant.verify")(function* (input: Ve
         })),
     ),
   );
-  const coverage = Arr.map(input.worksheet.parts, (part) =>
-    pipe(
-      Option.fromUndefinedOr(part.searched),
-      Option.flatMap((searched) =>
-        Option.all({
-          start: DateTime.make(`${searched.from}T00:00:00Z`),
-          end: DateTime.make(`${searched.to}T00:00:00Z`),
-        }),
-      ),
-      Option.map((window) =>
-        Arr.map(
-          coverageBlocks(charts.timelines.kp, "kp", window, charts.birth).blocks,
-          ({ id, start, end }) => ({ id, start, end }),
+  const ranking = yield* Effect.forEach(input.worksheet.parts, (part) =>
+    Effect.gen(function* () {
+      const event = Option.flatMap(Option.fromUndefinedOr(part.topic?.event), findKpEvent);
+      const asked = Arr.filter(Chart.Houses.literals, (house) =>
+        Arr.contains(part.topic?.houses ?? [], house),
+      );
+      const ready = Option.all({
+        topic: topicOf(event, Option.map(event, houseGroup), asked),
+        start: Option.flatMap(Option.fromUndefinedOr(part.searched), (searched) =>
+          DateTime.make(`${searched.from}T00:00:00Z`),
         ),
-      ),
-    ),
+        end: Option.flatMap(Option.fromUndefinedOr(part.searched), (searched) =>
+          DateTime.make(`${searched.to}T00:00:00Z`),
+        ),
+      });
+      return yield* Option.match(ready, {
+        onNone: () => Effect.succeed(Option.none<ReadonlyArray<RankedWindow>>()),
+        onSome: ({ topic, start, end }) =>
+          Effect.map(
+            rankingFor(charts, topic, { start, end }, part.depth ?? "bhukti"),
+            Option.some,
+          ),
+      });
+    }),
   );
   const verification = verifyAnswer(input.draft, input.worksheet, {
-    coverage,
+    ranking: Arr.map(ranking, (rows) =>
+      Option.map(rows, (found) => Arr.map(found, ({ id, rank, rating }) => ({ id, rank, rating }))),
+    ),
     knownFactIds: [
       ...Arr.map(chartFactsOf(charts, everyVarga), (fact) => fact.id),
       ...Arr.map(KP_EVENTS, (event) => `kp.rule.${event.id}`),

@@ -3,7 +3,6 @@ import { DateTime, Option } from "effect";
 
 import {
   antaraRunningAt,
-  coverageBlocks,
   aspectedHouses,
   jaiminiFacts,
   kpHouseOf,
@@ -96,20 +95,6 @@ describe("periods", () => {
       Option.some({ calendar: "par", lords: ["Moon", "Mars"] }),
     );
     expect(parsePeriodId("lunar:Moon-Mars")).toEqual(Option.none());
-  });
-});
-
-describe("coverage", () => {
-  it("names every larger period that takes a real share of the stretch", () => {
-    const blocks = (start: string, end: string) =>
-      coverageBlocks(timeline, "kp", { start: utc(start), end: utc(end) }, birth).blocks.map(
-        (block) => block.id,
-      );
-    expect(blocks("2000-06-01T00:00:00Z", "2001-06-01T00:00:00Z")).toEqual([
-      "kp:Moon-Moon",
-      "kp:Moon-Mars",
-    ]);
-    expect(blocks("2000-10-20T00:00:00Z", "2001-06-01T00:00:00Z")).toEqual(["kp:Moon-Mars"]);
   });
 });
 

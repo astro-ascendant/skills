@@ -53,7 +53,8 @@ the branch from the user message. Identical birth data skips `add`.
 | Event id | A row of the KP house-group table, listed by `events`. It names a house group. |
 | Fact | One line about the chart with an id, returned by `evidence`. A placement or a rule reading, never a conclusion. |
 | Period id | The calendar and lords of a dasha period, for example `kp:Ketu-Venus-Sun` or `par:Ketu-Venus-Sun`. Each school has its own calendar, some weeks apart. |
-| Candidate | One period that could hold the event, rated on two separate scales: the chart evidence (`weak`, `fair`, `strong`) and ordinary life (`impossible`, `unusual`, `ordinary`). |
+| Ranking | Every period of a stretch of life, strongest first, scored the same way each time by `evidence`. The starting point for timing. |
+| Candidate | One period that could hold the event, rated on two separate scales: the chart evidence (`weak`, `fair`, `strong`, from the ranking) and ordinary life (`impossible`, `unusual`, `ordinary`). |
 | Worksheet | Your reasoning for one answer: for each part of the question, the fact ids for and against, the candidates compared and the one chosen, the answer and how sure you are. Checked before the answer is sent. |
 | Pending MEMORY | Candidate dated events collected during the task. Shown at the end; written only after an explicit yes. |
 

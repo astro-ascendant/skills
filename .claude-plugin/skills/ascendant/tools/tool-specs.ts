@@ -260,7 +260,7 @@ export const toolSpecs = {
   evidence: {
     name: "ascendant_evidence",
     description:
-      "Chart facts for a saved person, each with an id: KP cusps, significators and planets, Parashari houses, planets, aspects and divisional charts, Jaimini karakas, recorded past events, (with from and to) the dasha periods of that stretch of life in each school's own calendar, a shortlist of every larger period covering it, and the slow transits, and (with at) the periods and slow transits running at one moment. Facts only; it draws no conclusion.",
+      "Chart facts for a saved person, each with an id: KP cusps, significators and planets, Parashari houses, planets, aspects and divisional charts, Jaimini karakas, recorded past events, (with from and to) the dasha periods of that stretch of life in each school's own calendar, a ranking of those periods by how strongly both schools connect them to the matter, and the slow transits, and (with at) the periods and slow transits running at one moment. Facts only; it draws no conclusion.",
     parameters: EvidenceInput,
   },
   verify: {

@@ -36,7 +36,7 @@ export const JUDGE_HELP =
 export const EVIDENCE_HELP =
   'Run `ascendant evidence --name "<name>" [--houses <1-12,...>] [--event <event-id>] [--vargas <9,10,...>] [--from "<ISO-8601>" --to "<ISO-8601>" [--depth dasha|bhukti|antara|sookshma]] [--at "<ISO-8601>"] [--compare <period-id,period-id,...>]`';
 export const VERIFY_HELP =
-  'Run `ascendant verify --name "<name>" --draft-file <path> --worksheet-file <path>`; the worksheet is JSON with asOf (YYYY-MM-DD) and parts, each with question, answer, reasoning, for (fact ids), against (fact ids), periods (period ids), confidence (low, moderate or high), and for a timed part candidates, each with periods, chart (weak, fair or strong), practicality (impossible, unusual or ordinary), for, against and chosen, plus searched with from and to (YYYY-MM-DD)';
+  'Run `ascendant verify --name "<name>" --draft-file <path> --worksheet-file <path>`; the worksheet is JSON with asOf (YYYY-MM-DD) and parts, each with question, answer, reasoning, for (fact ids), against (fact ids), periods (period ids), confidence (low, moderate or high), and for a timed part candidates, each with periods, chart (weak, fair or strong), practicality (impossible, unusual or ordinary), for, against and chosen, an optional adjusted reason when a rating differs from the ranking, plus searched with from and to (YYYY-MM-DD), topic (event or houses) and depth';
 
 const KpLayer = Layer.mergeAll(PlatformLayer, KpAstroParamsLayer, Swisseph.SwissephLayer);
 const ChartsLayer = Layer.mergeAll(PlatformLayer, Swisseph.SwissephLayer);

@@ -129,68 +129,56 @@ why. Never drop the awkward one silently.
 When the two disagree on a question of this kind, give the Parashari
 conclusion, lower your confidence, and say that the second reading differs.
 
-### Step 4: Time it by comparing candidates
+### Step 4: Time it from the ranking
 
 Skip this step when the answer to Step 3 is no.
 
-1. **List the periods** over the whole stretch in which the matter is
-   possible at all:
+1. **Rank the periods** of the whole stretch in which the matter is possible
+   at all:
 
    ```bash
-   bash "<skill-dir>/scripts/evidence.sh" --name "<person>" --houses <...> \
+   bash "<skill-dir>/scripts/evidence.sh" --name "<person>" --event <event-id> \
      --from "<ISO-8601>" --to "<ISO-8601>" --depth bhukti
    ```
 
-   `periods.kp` and `periods.parashari` are two separate calendars. Each
-   school measures the Moon from its own zero point, so the same sub-period
-   falls some weeks apart in the two. A period id carries its calendar
-   (`kp:...` or `par:...`), its dates and the age at its start. Work each
-   school on its own list: KP facts on `kp:` periods, Parashari facts on
-   `par:` periods. Go one level deeper (`--depth antara`, then
-   `--depth sookshma` when the question needs a month) inside the periods
-   whose lords carry the matter (`Dasha analysis starts from the event`,
-   `The dasha chain`, `Sub-periods reveal the mechanism`).
-   `periods.truncated: true` means the stretch is too long for that depth:
-   narrow the dates or stay shallower.
-2. **Take one candidate from every larger period.** The same output has a
-   `shortlist`: every larger period that covers the stretch, in each
-   calendar, with the periods inside it and the lords of each that touch the
-   houses asked for. Choose at least one candidate from each larger period,
-   and at least one from each calendar. This holds even when a larger
-   period's main lord looks weak: a period is judged on what is inside it,
-   not dismissed whole. When the question has linked parts (an offer and a
-   joining, an engagement and a wedding), give every part the full set of
-   candidates; do not hand one window to each part in advance.
-3. **Lay them side by side**:
+   Use `--houses` instead of `--event` when no event id fits. `ranking.rows`
+   lists every period of the stretch, strongest first, scored the same way
+   each time: how strongly its lords connect to the matter in KP and in
+   Parashari (each on its own calendar), the slow transits during it, and
+   the lords it shares with the person's recorded events. `ranking.basis`
+   says exactly what is counted. Each row has a `rating` (`weak`, `fair`,
+   `strong`) and the Parashari periods that cover the same dates.
+
+   Use `--depth bhukti` for a stretch of more than four years and
+   `--depth antara` for a shorter one. To name a month inside a chosen
+   period, rank again inside its dates one level deeper.
+2. **Take the three strongest windows as your candidates.** You may add
+   others; you may not leave any of the three out.
+3. **Look at each candidate closely**:
 
    ```bash
-   bash "<skill-dir>/scripts/evidence.sh" --name "<person>" --houses <...> \
+   bash "<skill-dir>/scripts/evidence.sh" --name "<person>" --event <event-id> \
      --compare "<period-id>,<period-id>,<period-id>"
    ```
 
    `candidates` gives the same things for each: its dates and age; what
    every lord means in that period's own school; under
    `sameDatesInOtherCalendar` which periods of the other school cover those
-   dates; the slow transits during it (`Transits as triggers`); and under
-   `record` which lords it shares with the periods the person's recorded
-   events fell in. A lord that has already delivered real events for this
-   person counts for more than its textbook reading.
-
-   A transit names its house twice: by whole-sign houses for Parashari and
-   by Placidus cusps for KP. They can differ. Use the one that belongs to the
-   candidate's school, and say which you mean.
-
-   When a `kp:` candidate and a `par:` candidate cover the same weeks and
-   both are strong, list them together as one candidate with both period
-   ids: the two schools agree on those dates, which is the best support a
-   date can have. When they point to different weeks, they are different
-   candidates.
+   dates; the slow transits during it, with the house in both house systems
+   (`Transits as triggers`); and under `record` which lords it shares with
+   the periods the person's recorded events fell in.
 4. **Rate every candidate on two separate scales.**
 
-   | Scale | Values | What it measures |
+   | Scale | Values | Where it comes from |
    |---|---|---|
-   | `chart` | `weak`, `fair`, `strong` | The chart evidence alone: lords, transits, the record |
+   | `chart` | `weak`, `fair`, `strong` | The ranking's `rating`. Keep it unless you have a reason the ranking cannot see |
    | `practicality` | `impossible`, `unusual`, `ordinary` | Ordinary life alone, for this person, place and time |
+
+   The ranking counts connections. It does not read quality: a divisional
+   chart, a yoga, a combust or retrograde lord, a clear verdict from Step 3.
+   When one of those changes the picture, move the `chart` rating one step
+   and give the reason in `adjusted`. Never move it two steps, and never
+   move it to make a preferred window win.
 
    `practicality` has no value for typical or common. A window that would
    surprise nobody is `ordinary`, however often or seldom it happens. Marriage
@@ -199,9 +187,13 @@ Skip this step when the answer to Step 3 is no.
 5. **Choose by rule.** An `impossible` candidate is out. An `unusual` one
    stays only if its `chart` rating is higher than every `ordinary`
    candidate's. Among those left, the higher `chart` rating wins, and
-   `practicality` plays no further part. When two are level on `chart`, pick
-   one, name the other, and say what would separate them. The check in Step 6
-   applies this rule to your worksheet.
+   `practicality` plays no further part. When two are level on `chart`, take
+   the one the ranking places higher, name the other, and say what would
+   separate them. The check in Step 6 applies this rule to your worksheet.
+
+When the question has linked parts (an offer and a joining, an engagement and
+a wedding), rank and choose for each part from the full set; do not hand one
+window to each part in advance.
 
 For a past event, give your best estimate and ask the user whether it is
 right, so the true date can be recorded and the birth time checked against
@@ -247,6 +239,8 @@ Save the draft to `./.ascendant/draft.md` and the worksheet to
       "against": ["<fact id>"],
       "periods": ["<period id of the chosen candidate>"],
       "searched": { "from": "<YYYY-MM-DD>", "to": "<YYYY-MM-DD>" },
+      "topic": { "event": "<event id>" },
+      "depth": "<bhukti or antara>",
       "candidates": [
         {
           "periods": ["<period id>"],
@@ -261,7 +255,8 @@ Save the draft to `./.ascendant/draft.md` and the worksheet to
           "chart": "<weak, fair or strong>",
           "practicality": "<impossible, unusual or ordinary>",
           "for": ["<fact id>"],
-          "against": ["<fact id>"]
+          "against": ["<fact id>"],
+          "adjusted": "<only when chart differs from the ranking: what the ranking cannot see>"
         }
       ],
       "confidence": "<low, moderate or high>"
@@ -278,9 +273,11 @@ two how you weighed the evidence and what decided it. `for` and `against`
 hold fact ids exactly as the evidence gave them; list every fact that
 materially speaks against, not one for form. `periods` holds the ids of the
 periods your dates come from, or the running periods if you speak about
-now. A part that picks a period carries `searched` (the stretch of life
-you listed periods for) and `candidates` from Step 4, one from every larger
-period in that stretch, with exactly one marked `chosen`; leave `candidates` out of a part
+now. A part that picks a period carries `searched`, `topic` and `depth`
+exactly as you gave them to the ranking call (`topic` is
+`{ "event": "<id>" }` or `{ "houses": [..] }`), and `candidates` from
+Step 4, which include the three strongest windows, with exactly one marked
+`chosen`; leave `candidates` out of a part
 that has no timing or only speaks about now. `asOf` is today's date.
 
 ```bash
@@ -291,8 +288,10 @@ bash "<skill-dir>/scripts/verify.sh" --name "<person>" \
 It checks that every cited fact and period exists for this person, that
 each candidate's facts belong to the school whose calendar dates it, that
 every date in the draft falls inside a listed period or is a recorded date,
-that a picked period was compared with a candidate from every larger
-period in the stretch searched and chosen by the rule in Step 4,
+that the candidates include the three strongest windows of the ranking,
+that each `chart` rating is the ranking's or one step from it with a
+reason, that the choice follows the rule in Step 4, that the answer does
+not sound surer than the worksheet,
 that high confidence names what speaks against it, and the wording rules.
 
 - `ok: true`: send the draft unchanged.

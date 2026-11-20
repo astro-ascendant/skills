@@ -64,6 +64,7 @@ cp "${SKILL_DIR}/tools/api.ts" \
   "${SKILL_DIR}/tools/verify-answer.ts" \
   "${SKILL_DIR}/tools/evidence.ts" \
   "${SKILL_DIR}/tools/dossier.ts" \
+  "${SKILL_DIR}/tools/ranking.ts" \
   "${SKILL_DIR}/tools/add-person.ts" \
   "${SKILL_DIR}/tools/kp-lords.ts" \
   "${SKILL_DIR}/tools/markdown.ts" \

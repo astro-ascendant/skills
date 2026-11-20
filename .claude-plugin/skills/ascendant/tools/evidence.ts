@@ -79,7 +79,7 @@ interface Placed {
   readonly house: House;
 }
 
-const placedIn = (chart: Chart.Chart): ReadonlyArray<Placed> =>
+export const placedIn = (chart: Chart.Chart): ReadonlyArray<Placed> =>
   Arr.flatMap(HOUSES, (house) =>
     Arr.map(chart.houses[house].planets, (planet): Placed => ({ planet, house })),
   );
@@ -399,123 +399,6 @@ export function resolvePeriod(
   );
 }
 
-export const ShortlistRow = Schema.Struct({
-  id: Schema.String,
-  start: Schema.DateTimeUtcFromString,
-  end: Schema.DateTimeUtcFromString,
-  ageAtStart: Schema.Finite,
-  linkedLords: Schema.String,
-});
-export interface ShortlistRow extends Schema.Schema.Type<typeof ShortlistRow> {}
-
-export const ShortlistBlock = Schema.Struct({
-  id: Schema.String,
-  start: Schema.DateTimeUtcFromString,
-  end: Schema.DateTimeUtcFromString,
-  rows: Schema.Array(ShortlistRow),
-});
-export interface ShortlistBlock extends Schema.Schema.Type<typeof ShortlistBlock> {}
-
-const MAX_BHUKTI_BLOCKS = 8;
-const MIN_BLOCK_OVERLAP_DAYS = 30;
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-const overlapDays = (left: Span, right: Span): number =>
-  (Math.min(DateTime.toEpochMillis(left.end), DateTime.toEpochMillis(right.end)) -
-    Math.max(DateTime.toEpochMillis(left.start), DateTime.toEpochMillis(right.start))) /
-  DAY_MS;
-
-export function coverageBlocks(
-  timeline: Timeline,
-  calendar: Calendar,
-  window: Span,
-  birth: DateTime.Utc,
-): { readonly unit: Depth; readonly within: Depth; readonly blocks: ReadonlyArray<PeriodRow> } {
-  const blocksAt = (depth: Depth) =>
-    Arr.filter(
-      periodRows(timeline, calendar, depth, window, birth),
-      (row) => overlapDays(row, window) >= MIN_BLOCK_OVERLAP_DAYS,
-    );
-  const bhuktis = blocksAt("bhukti");
-  return bhuktis.length <= MAX_BHUKTI_BLOCKS
-    ? { unit: "bhukti", within: "antara", blocks: bhuktis }
-    : { unit: "dasha", within: "bhukti", blocks: blocksAt("dasha") };
-}
-
-export function linkedLords(
-  lords: ReadonlyArray<string>,
-  calendar: Calendar,
-  facts: KpFacts,
-  rashi: Chart.Chart,
-  houses: ReadonlyArray<House>,
-): ReadonlyArray<string> {
-  const touches = (planet: Planet): boolean => {
-    if (houses.length === 0) return true;
-    if (calendar === "kp") {
-      return Arr.some(LEVELS, (level) =>
-        Arr.some(facts.planetSignifications[planet][`level${level}`], (house) =>
-          Arr.contains(houses, house),
-        ),
-      );
-    }
-    const place = Arr.findFirst(placedIn(rashi), (entry) => entry.planet.name === planet);
-    return (
-      Arr.some(houses, (house) => rashi.houses[house].signLord === planet) ||
-      Option.exists(
-        place,
-        (entry) =>
-          Arr.contains(houses, entry.house) ||
-          Arr.some(aspectedHouses(planet, entry.house), (house) => Arr.contains(houses, house)),
-      )
-    );
-  };
-  return pipe(
-    Arr.dedupe(lords),
-    Arr.filter((name) =>
-      Option.exists(
-        Arr.findFirst(PLANETS, (planet) => planet === name),
-        touches,
-      ),
-    ),
-  );
-}
-
-export function shortlist(
-  timeline: Timeline,
-  calendar: Calendar,
-  window: Span,
-  birth: DateTime.Utc,
-  facts: KpFacts,
-  rashi: Chart.Chart,
-  houses: ReadonlyArray<House>,
-): { readonly unit: Depth; readonly blocks: ReadonlyArray<ShortlistBlock> } {
-  const { unit, within, blocks } = coverageBlocks(timeline, calendar, window, birth);
-  return {
-    unit,
-    blocks: Arr.map(blocks, (block) => ({
-      id: block.id,
-      start: block.start,
-      end: block.end,
-      rows: pipe(
-        periodRows(timeline, calendar, within, block, birth),
-        Arr.filter((row) => overlapDays(row, window) > 0),
-        Arr.map((row) => ({
-          ...row,
-          linkedLords: list(
-            linkedLords(
-              Option.match(parsePeriodId(row.id), { onNone: () => [], onSome: (id) => id.lords }),
-              calendar,
-              facts,
-              rashi,
-              houses,
-            ),
-          ),
-        })),
-      ),
-    })),
-  };
-}
-
 export const CandidateRow = Schema.Struct({
   id: Schema.String,
   start: Schema.DateTimeUtcFromString,
@@ -609,7 +492,7 @@ const SIGNS: ReadonlyArray<Chart.Rashis> = Chart.Rashis.literals;
 export const signOf = (longitude: number): Chart.Rashis =>
   SIGNS[Math.floor((((longitude % 360) + 360) % 360) / 30)] ?? "Aries";
 
-const houseFrom = (reference: Chart.Rashis, sign: Chart.Rashis): number =>
+export const houseFrom = (reference: Chart.Rashis, sign: Chart.Rashis): number =>
   ((SIGNS.indexOf(sign) - SIGNS.indexOf(reference) + SIGNS.length) % SIGNS.length) + 1;
 
 export const transitFactId = (planet: Planet, sign: Chart.Rashis, entered: DateTime.Utc): string =>

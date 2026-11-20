@@ -16,6 +16,7 @@ export const Candidate = Schema.Struct({
   for: Schema.Array(Schema.String),
   against: Schema.Array(Schema.String),
   chosen: Schema.optional(Schema.Boolean),
+  adjusted: Schema.optional(Schema.String),
 });
 export interface Candidate extends Schema.Schema.Type<typeof Candidate> {}
 
@@ -28,6 +29,13 @@ export const WorksheetPart = Schema.Struct({
   periods: Schema.optional(Schema.Array(Schema.String)),
   candidates: Schema.optional(Schema.Array(Candidate)),
   searched: Schema.optional(Schema.Struct({ from: Schema.String, to: Schema.String })),
+  topic: Schema.optional(
+    Schema.Struct({
+      event: Schema.optional(Schema.String),
+      houses: Schema.optional(Schema.Array(Schema.Int)),
+    }),
+  ),
+  depth: Schema.optional(Schema.Literals(["dasha", "bhukti", "antara", "sookshma"])),
   confidence: Schema.Literals(["low", "moderate", "high"]),
 });
 export interface WorksheetPart extends Schema.Schema.Type<typeof WorksheetPart> {}
@@ -48,7 +56,9 @@ export const ProblemKind = Schema.Literals([
   "record-not-used",
   "candidates-missing",
   "ranking-broken",
-  "coverage-missing",
+  "ranking-ignored",
+  "rating-unexplained",
+  "confidence-mismatch",
   "schools-mixed",
   "one-sided",
   "unknown-fact",
@@ -80,14 +90,14 @@ export interface ResolvedPeriod {
   readonly running: boolean;
 }
 
-export interface CoverageBlock {
+export interface RankedPeriod {
   readonly id: string;
-  readonly start: DateTime.Utc;
-  readonly end: DateTime.Utc;
+  readonly rank: number;
+  readonly rating: ChartStrength;
 }
 
 export interface VerifiableFacts {
-  readonly coverage: ReadonlyArray<Option.Option<ReadonlyArray<CoverageBlock>>>;
+  readonly ranking: ReadonlyArray<Option.Option<ReadonlyArray<RankedPeriod>>>;
   readonly knownFactIds: ReadonlyArray<string>;
   readonly periods: ReadonlyArray<ResolvedPeriod>;
   readonly citableMoments: ReadonlyArray<DateTime.Utc>;
@@ -216,8 +226,12 @@ const PROCESS_WORDING =
 const VAGUE_TIMING =
   /\b(?:(?:a few|a couple of|several|some) (?:weeks|months|years) (?:earlier|later|before|after|ago)|(?:the )?(?:coming|next|following|last|past) (?:few |couple of )?(?:weeks|months|years)|(?:gave|said|read|mentioned) earlier|a (?:year|month) or (?:two|so))\b/i;
 
+const SURE_WORDING =
+  /\b(?:moderately|fairly|quite|reasonably|pretty|very|highly) (?:sure|confident|certain)\b|\b(?:moderate|high|good|strong) confidence\b/i;
+
 const MIN_REASONING_LENGTH = 40;
 const MIN_CANDIDATES = 2;
+const TOP_RANKED = 3;
 
 const KP_FACT = /^kp\./;
 const PARASHARI_FACT = /^(?:par\.|d\d+\.|jaimini\.)/;
@@ -325,36 +339,55 @@ export function verifyAnswer(
   const choosesAPeriod = (part: WorksheetPart): boolean =>
     candidatesOf(part).length > 0 || Arr.some(part.periods ?? [], (id) => !isRunning(id));
 
-  const spanOfPeriod = (id: string): Option.Option<ResolvedPeriod> =>
-    Arr.findFirst(facts.periods, (period) => period.id === id);
-  const coverageProblems = (
+  const rankingProblems = (
     part: WorksheetPart,
     partIndex: number,
   ): ReadonlyArray<Option.Option<Problem>> => {
     if (candidatesOf(part).length < MIN_CANDIDATES) return [];
-    const candidateSpans = Arr.getSomes(
-      Arr.map(
-        Arr.flatMap(candidatesOf(part), (candidate) => candidate.periods),
-        spanOfPeriod,
-      ),
-    );
-    return Option.match(Option.flatten(Arr.get(facts.coverage, partIndex)), {
+    return Option.match(Option.flatten(Arr.get(facts.ranking, partIndex)), {
       onNone: () => [
         Option.some<Problem>({
-          kind: "coverage-missing",
-          detail: `"${part.question}" does not say which stretch of life was searched; give searched.from and searched.to as YYYY-MM-DD`,
+          kind: "ranking-ignored",
+          detail: `"${part.question}" cannot be compared with the ranking; give searched (from and to as YYYY-MM-DD), topic (the event id or houses you asked the evidence for) and depth`,
         }),
       ],
-      onSome: (blocks) => {
-        const uncovered = Arr.filter(
-          blocks,
-          (block) => !Arr.some(candidateSpans, (span) => overlaps(span, block)),
+      onSome: (ranked) => {
+        const listed = Arr.flatMap(candidatesOf(part), (candidate) => candidate.periods);
+        const missing = pipe(
+          ranked,
+          Arr.filter((row) => row.rank <= TOP_RANKED && !Arr.contains(listed, row.id)),
+          Arr.map((row) => row.id),
         );
         return [
-          when(uncovered.length > 0, () => ({
-            kind: "coverage-missing",
-            detail: `"${part.question}" compares no candidate from ${uncovered.map((block) => block.id).join(", ")}; every larger period in the stretch searched needs one, even when its main lord looks weak`,
+          when(missing.length > 0, () => ({
+            kind: "ranking-ignored",
+            detail: `"${part.question}" leaves out ${missing.join(", ")}; the ${TOP_RANKED} strongest windows of the ranking must be among the candidates`,
           })),
+          ...Arr.flatMap(candidatesOf(part), (candidate) =>
+            pipe(
+              Arr.findFirst(ranked, (row) => Arr.contains(candidate.periods, row.id)),
+              Option.match({
+                onNone: () => [],
+                onSome: (row) => {
+                  const moved = Math.abs(CHART_RANK[candidate.chart] - CHART_RANK[row.rating]);
+                  return [
+                    when(moved > 1, () => ({
+                      kind: "rating-unexplained",
+                      detail: `"${part.question}" rates ${row.id} ${candidate.chart} where the ranking gives ${row.rating}; a rating may move one step at most`,
+                    })),
+                    when(
+                      moved === 1 &&
+                        (candidate.adjusted ?? "").trim().length < MIN_REASONING_LENGTH,
+                      () => ({
+                        kind: "rating-unexplained",
+                        detail: `"${part.question}" rates ${row.id} ${candidate.chart} where the ranking gives ${row.rating}; say in adjusted what the ranking does not count that justifies the change, or use its rating`,
+                      }),
+                    ),
+                  ];
+                },
+              }),
+            ),
+          ),
         ];
       },
     });
@@ -366,7 +399,7 @@ export function verifyAnswer(
       detail: "The worksheet has no parts; every part of the question needs one",
     })),
     ...Arr.flatMap(worksheet.parts, (part, partIndex) => [
-      ...coverageProblems(part, partIndex),
+      ...rankingProblems(part, partIndex),
       when(part.for.length + part.against.length === 0, () => ({
         kind: "no-evidence",
         detail: `"${part.question}" cites no fact; an answer needs evidence from the chart`,
@@ -484,6 +517,18 @@ export function verifyAnswer(
       Option.map((match): Problem => ({
         kind: "process-wording",
         detail: `"${match[0]}" talks about how the answer was produced; speak as the astrologer`,
+      })),
+    ),
+    pipe(
+      Option.fromNullishOr(draft.match(SURE_WORDING)),
+      Option.filter(
+        () =>
+          worksheet.parts.length > 0 &&
+          Arr.every(worksheet.parts, (part) => part.confidence === "low"),
+      ),
+      Option.map((match): Problem => ({
+        kind: "confidence-mismatch",
+        detail: `"${match[0]}" claims more confidence than the worksheet, where every part is low; say how unsure you are in the same terms`,
       })),
     ),
     pipe(
