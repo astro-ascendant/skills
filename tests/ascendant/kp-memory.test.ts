@@ -42,6 +42,8 @@ describe("memory parser", () => {
     "- [31/02/2020] #foreign-travel: no such date",
     "- [05/05/2021] #nonsense: unknown tag",
     "- [5/5/2021] #marriage: short date",
+    "- [03/2023]: Month only note",
+    "- [01/2024] #marriage-engagement: Month only event",
     "A free line that is not an entry",
   ].join("\r\n");
 
@@ -52,22 +54,55 @@ describe("memory parser", () => {
     ).toEqual([
       [8, "2019-02-20", "marriage", "Married: registry, then ceremony"],
       [6, "2022-11-12", "child-birth", "First child"],
+      [13, "2024-01", "marriage-engagement", "Month only event"],
     ]);
     expect(memory.events.map((entry) => DateTime.formatIso(entry.noonUtc))).toEqual([
       "2019-02-20T12:00:00.000Z",
       "2022-11-12T12:00:00.000Z",
+      "2024-01-15T12:00:00.000Z",
+    ]);
+    expect(memory.notes.map((entry) => [entry.line, entry.date, entry.message])).toEqual([
+      [7, "2008-06-15", "Moved school"],
+      [10, "2021-05-05", "unknown tag"],
+      [12, "2023-03", "Month only note"],
     ]);
     expect(memory.ignored).toEqual([
       { line: 7, reason: "untagged" },
       { line: 9, reason: "malformed" },
       { line: 10, reason: "unknown-event" },
       { line: 11, reason: "malformed" },
+      { line: 12, reason: "untagged" },
+    ]);
+  });
+
+  it("reads the date and event list form, in any of its date spellings", () => {
+    const memory = parseMemory(
+      [
+        "* Nov 2024 - First job",
+        "* 20 Feb 2019 - #marriage Registry wedding",
+        "* 2023-03 - Relationship began",
+        "- 05/06/2024 - Break-up",
+        "* Smarch 2020 - no such month",
+        "* a note with no date",
+      ].join("\n"),
+    );
+    expect(memory.events.map((entry) => [entry.date, entry.event.id, entry.message])).toEqual([
+      ["2019-02-20", "marriage", "Registry wedding"],
+    ]);
+    expect(memory.notes.map((entry) => [entry.date, entry.message])).toEqual([
+      ["2023-03", "Relationship began"],
+      ["2024-06-05", "Break-up"],
+      ["2024-11", "First job"],
+    ]);
+    expect(memory.ignored.filter((entry) => entry.reason === "malformed")).toEqual([
+      { line: 5, reason: "malformed" },
+      { line: 6, reason: "malformed" },
     ]);
   });
 
   it("an empty or header-only file is an empty memory", () => {
-    expect(parseMemory("")).toEqual({ events: [], ignored: [] });
-    expect(parseMemory("---\nname: Ada\n---\n")).toEqual({ events: [], ignored: [] });
+    expect(parseMemory("")).toEqual({ events: [], notes: [], ignored: [] });
+    expect(parseMemory("---\nname: Ada\n---\n")).toEqual({ events: [], notes: [], ignored: [] });
   });
 });
 

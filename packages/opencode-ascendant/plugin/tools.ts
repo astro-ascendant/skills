@@ -6,8 +6,10 @@ import { toolSpecs } from "../skills/ascendant/tools/tool-specs.ts";
 import {
   addPerson,
   checkTransit,
+  evidence,
   judge,
   rulingPlanets,
+  verify,
 } from "../skills/ascendant/tools/workflows.ts";
 import { makeDirectoryRunner } from "./directory.ts";
 import { toToolError } from "./errors.ts";
@@ -49,6 +51,18 @@ export const registerTools = Effect.fn("Ascendant.registerTools")(function* (
       description: toolSpecs.judge.description,
       input: toolSpecs.judge.parameters,
       execute: (args) => run(judge(args)),
+    });
+    editor.add({
+      name: toolSpecs.evidence.name,
+      description: toolSpecs.evidence.description,
+      input: toolSpecs.evidence.parameters,
+      execute: (args) => run(evidence(args)),
+    });
+    editor.add({
+      name: toolSpecs.verify.name,
+      description: toolSpecs.verify.description,
+      input: toolSpecs.verify.parameters,
+      execute: (args) => run(verify(args)),
     });
   });
 });

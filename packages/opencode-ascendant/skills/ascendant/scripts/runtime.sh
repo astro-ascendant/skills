@@ -36,6 +36,12 @@ mkdir -p "${RUNTIME_TOOLS_DIR}"
 if [ ! -e "${RUNTIME_DIR}/.gitignore" ]; then
   printf '*\n' > "${RUNTIME_DIR}/.gitignore"
 fi
+# Scratch space for agent scripts and draft answers; never committed.
+SCRATCH_DIR="${WORKING_DIRECTORY}/.ascendant"
+mkdir -p "${SCRATCH_DIR}"
+if [ ! -e "${SCRATCH_DIR}/.gitignore" ]; then
+  printf '*\n' > "${SCRATCH_DIR}/.gitignore"
+fi
 # Local-only runtime copy: sync the trusted skill sources into the working
 # directory so Bun resolves the CWD-installed node_modules. No remote
 # fetch happens here. Explicit allowlist only; add new tool files here.
@@ -55,6 +61,9 @@ cp "${SKILL_DIR}/tools/api.ts" \
   "${SKILL_DIR}/tools/judge.ts" \
   "${SKILL_DIR}/tools/kp-hindcast.ts" \
   "${SKILL_DIR}/tools/memory.ts" \
+  "${SKILL_DIR}/tools/verify-answer.ts" \
+  "${SKILL_DIR}/tools/evidence.ts" \
+  "${SKILL_DIR}/tools/dossier.ts" \
   "${SKILL_DIR}/tools/add-person.ts" \
   "${SKILL_DIR}/tools/kp-lords.ts" \
   "${SKILL_DIR}/tools/markdown.ts" \

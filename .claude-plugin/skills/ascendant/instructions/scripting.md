@@ -24,7 +24,9 @@ Import from `../../.ascendant-agent/tools/api.ts`. Every function takes the same
 | `checkTransit` | `name`, `moment`, `planet`, `school?`, `direction?`, `kinds?` (array), `count?`, `targetLongitude?`, `house?`, `maxYears?`, `precisionMinutes?`, `summary?` | Same as `check-transit.sh` |
 | `rulingPlanets` | `moment`, `name?`, `latitude?`, `longitude?` | Same as `ruling-planets.sh` |
 | `judge` | `name`, `event`, `from`, `years?`, `limit?`, `judgmentMoment?`, `useMemory?`, `rectifyMinutes?` | Same as `judge.sh` |
-| `events` | none | Event ids `judge` accepts |
+| `evidence` | `name`, `houses?` (array), `event?`, `vargas?` (array), `from?`, `to?`, `depth?`, `at?`, `compare?` (array) | Same as `evidence.sh` |
+| `verify` | `name`, `draft`, `worksheet` (`{ asOf?, parts }`) | Same as `verify.sh` |
+| `events` | none | KP house groups as event ids, and the engine choices |
 | `home` | none | Saved people |
 | `main(program)` | an `Effect` | Prints its result and exits with its failure code |
 

@@ -1,6 +1,6 @@
 # Setup
 
-Reach this file when `add`, transit, or ruling-planets needs packages, or when the method preference must be set, on a host that can write the working directory and run skill scripts. Otherwise stay in `SKILL.md`: take person evidence from the user and read `<skill-dir>/references/`.
+Reach this file when `add`, evidence, transit, or ruling-planets needs packages, on a host that can write the working directory and run skill scripts. Otherwise stay in `SKILL.md`: take person evidence from the user and read `<skill-dir>/references/`.
 
 `<skill-dir>` is the installed skill directory (the folder that contains this `instructions/` tree).
 
@@ -22,32 +22,6 @@ cp -R "<skill-dir>/references" ./references
 ```
 
 Done when `./references/kp/` and `./references/parashari/` exist. The `rm` makes a re-run replace the previous copy rather than nest `references/references`.
-
-## Method preference
-
-Skip this section when the request already names a school or you cannot ask the user: write nothing, and the school resolves from the request. Otherwise ask both questions in one message: on the first setup, and again whenever the
-user wants to change their default.
-
-1. `Default method: Parashari, KP, or none (ask me each time)?`
-2. `Ask me every session even when a default is set? yes/no`
-
-Record the answers:
-
-```bash
-bash "<skill-dir>/scripts/config.sh" set \
-  --default-method "KP" \
-  --ask-method-every-session "FALSE"
-```
-
-`--default-method` accepts `KP`, `Parashari`, or `NULL`. `--ask-method-every-session`
-accepts `TRUE` or `FALSE` and is forced to `TRUE` when the method is `NULL`. The
-file is `<cwd>/.ascendant/config.txt`, self-ignored in the host repository, and
-read on every analysis to resolve the school.
-
-Done when `bash "<skill-dir>/scripts/config.sh" show` reports
-`status: found` with the chosen values. A missing file reads as `defaultMethod:
-NULL` and `askMethodEverySession: TRUE`; never invent a default school in its
-place.
 
 ## Person record
 

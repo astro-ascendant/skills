@@ -2,6 +2,8 @@ import { Chart, Transit } from "astro-ascendant";
 import { Schema } from "effect";
 
 import { KpEventId } from "./events.ts";
+import { Depth } from "./evidence.ts";
+import { Worksheet } from "./verify-answer.ts";
 import { Latitude, Longitude, OffsetMoment, PersonName, Sex } from "./contract.ts";
 
 export const AddPersonInput = Schema.Struct({
@@ -158,6 +160,77 @@ export const JudgeInput = Schema.Struct({
 });
 export type JudgeInput = typeof JudgeInput.Type;
 
+export const EvidenceInput = Schema.Struct({
+  name: PersonName.pipe(Schema.annotate({ description: "Name of a saved person record" })),
+  houses: Schema.optional(
+    Schema.Array(Chart.Houses).pipe(
+      Schema.annotate({
+        description: "Houses the question turns on; leave out for all twelve",
+      }),
+    ),
+  ),
+  event: Schema.optional(
+    KpEventId.pipe(
+      Schema.annotate({
+        description:
+          "An event id from `ascendant events`: adds its guidebook house group and the strict KP promise rule as one fact",
+      }),
+    ),
+  ),
+  vargas: Schema.optional(
+    Schema.Array(Chart.DivisionalDivision).pipe(
+      Schema.annotate({ description: "Divisional charts to include (default 9 and 10)" }),
+    ),
+  ),
+  from: Schema.optional(
+    OffsetMoment.pipe(
+      Schema.annotate({ description: "Start of the stretch of life to list periods for" }),
+    ),
+  ),
+  to: Schema.optional(
+    OffsetMoment.pipe(Schema.annotate({ description: "End of that stretch; give with from" })),
+  ),
+  at: Schema.optional(
+    OffsetMoment.pipe(
+      Schema.annotate({
+        description:
+          "A moment, usually now: adds the periods running then at every level and where Jupiter, Saturn and Rahu were",
+      }),
+    ),
+  ),
+  compare: Schema.optional(
+    Schema.Array(Schema.String).pipe(
+      Schema.annotate({
+        description:
+          "Period ids (kp:... or par:...) to lay side by side as candidates: for each, what every lord means in that period's own school, which periods of the other calendar cover the same dates, the slow transits during it, and the lords it shares with the recorded past events",
+      }),
+    ),
+  ),
+  depth: Schema.optional(
+    Depth.pipe(
+      Schema.annotate({
+        description:
+          "Period level to list: dasha, bhukti (default), antara or sookshma. Narrow the stretch before going deeper",
+      }),
+    ),
+  ),
+});
+export type EvidenceInput = typeof EvidenceInput.Type;
+
+export const VerifyInput = Schema.Struct({
+  name: PersonName.pipe(Schema.annotate({ description: "Name of a saved person record" })),
+  draft: Schema.String.pipe(
+    Schema.annotate({ description: "The full draft answer, exactly as it would be shown" }),
+  ),
+  worksheet: Worksheet.pipe(
+    Schema.annotate({
+      description:
+        "The reasoning behind the draft: one part per part of the question, with the fact ids for and against, the period ids chosen, the answer and its confidence",
+    }),
+  ),
+});
+export type VerifyInput = typeof VerifyInput.Type;
+
 /**
  * Name, description and parameters of every tool. Plain `effect` only, so the
  * OpenCode plugin can use it; `toolkit.ts` wraps the same specs for `effect/ai`.
@@ -183,5 +256,17 @@ export const toolSpecs = {
     description:
       "Judge one event for a saved person by KP rules: promise, ranked significators and timing windows, checked against the tagged past events in MEMORY.md. Same input and memory, same judgment.",
     parameters: JudgeInput,
+  },
+  evidence: {
+    name: "ascendant_evidence",
+    description:
+      "Chart facts for a saved person, each with an id: KP cusps, significators and planets, Parashari houses, planets, aspects and divisional charts, Jaimini karakas, recorded past events, (with from and to) the dasha periods of that stretch of life in each school's own calendar, a shortlist of every larger period covering it, and the slow transits, and (with at) the periods and slow transits running at one moment. Facts only; it draws no conclusion.",
+    parameters: EvidenceInput,
+  },
+  verify: {
+    name: "ascendant_verify",
+    description:
+      "Check a draft answer against its worksheet: every cited fact id and period id must exist for this person, every date in the draft must fall in a chosen period or be a recorded date, vague timing and unsupported confidence are refused, and the wording rules must hold. Returns ok or the problems to fix.",
+    parameters: VerifyInput,
   },
 } as const;

@@ -17,6 +17,7 @@
     "check-transit": "bun skills/ascendant/tools/ascendant.ts transit",
     "test": "bun --bun vitest run",
     "eval": "bun eval/run.ts",
+    "eval:choices": "bun eval/run-choices.ts",
     "build:skill": "bun scripts/build-skill.mjs",
     "check:plugin": "bun scripts/check-plugin-externals.mjs",
     "sync-versions": "bun scripts/sync-versions.mjs",

@@ -13,13 +13,16 @@ import {
   readStoredPerson,
 } from "./common.ts";
 import { CommandError } from "./errors.ts";
+import { evidenceWorkflow, verifyWorkflow } from "./dossier.ts";
 import { judgeWorkflow, listEvents } from "./judge.ts";
 import { rulingPlanetsWorkflow } from "./ruling-planets.ts";
 import type {
   AddPersonInput,
   CheckTransitInput,
+  EvidenceInput,
   JudgeInput,
   RulingPlanetsInput,
+  VerifyInput,
 } from "./tool-specs.ts";
 
 export const ADD_PERSON_HELP =
@@ -30,8 +33,13 @@ export const RULING_PLANETS_HELP =
   'Run `ascendant ruling-planets --moment "<ISO-8601>" (--name "<name>" | --latitude <latitude> --longitude <longitude>)`';
 export const JUDGE_HELP =
   'Run `ascendant judge --name "<name>" --event <event-id> --from "<ISO-8601>" [--years <1-60>] [--limit <1-50>] [--judgment-moment "<ISO-8601>"] [--rectify-minutes <0-60>] [--ignore-memory]`; list event ids with `ascendant events`';
+export const EVIDENCE_HELP =
+  'Run `ascendant evidence --name "<name>" [--houses <1-12,...>] [--event <event-id>] [--vargas <9,10,...>] [--from "<ISO-8601>" --to "<ISO-8601>" [--depth dasha|bhukti|antara|sookshma]] [--at "<ISO-8601>"] [--compare <period-id,period-id,...>]`';
+export const VERIFY_HELP =
+  'Run `ascendant verify --name "<name>" --draft-file <path> --worksheet-file <path>`; the worksheet is JSON with asOf (YYYY-MM-DD) and parts, each with question, answer, reasoning, for (fact ids), against (fact ids), periods (period ids), confidence (low, moderate or high), and for a timed part candidates, each with periods, chart (weak, fair or strong), practicality (impossible, unusual or ordinary), for, against and chosen, plus searched with from and to (YYYY-MM-DD)';
 
 const KpLayer = Layer.mergeAll(PlatformLayer, KpAstroParamsLayer, Swisseph.SwissephLayer);
+const ChartsLayer = Layer.mergeAll(PlatformLayer, Swisseph.SwissephLayer);
 
 interface Fallback {
   readonly code: string;
@@ -214,6 +222,32 @@ export const judge = Effect.fn("Ascendant.judgeTool")(function* (input: JudgeInp
       }),
     ),
     Effect.provide(KpLayer),
+  );
+});
+
+export const verify = Effect.fn("Ascendant.verifyTool")(function* (input: VerifyInput) {
+  return yield* verifyWorkflow(input).pipe(
+    Effect.mapError((error) =>
+      domainError(error, input.name, {
+        code: "VERIFY_FAILED",
+        message: "Unable to verify the draft",
+        help: "Verify the saved person record and the worksheet, then retry",
+      }),
+    ),
+    Effect.provide(ChartsLayer),
+  );
+});
+
+export const evidence = Effect.fn("Ascendant.evidenceTool")(function* (input: EvidenceInput) {
+  return yield* evidenceWorkflow(input).pipe(
+    Effect.mapError((error) =>
+      domainError(error, input.name, {
+        code: "EVIDENCE_FAILED",
+        message: "Unable to gather the evidence",
+        help: "Verify the saved person record, the houses or event id and the dates, then retry",
+      }),
+    ),
+    Effect.provide(ChartsLayer),
   );
 });
 

@@ -1,4 +1,10 @@
-# Parashari readings
+# Survey reading
+
+Use this file for a broad outlook, a year ahead, a life area, or how well
+something will go. For a specific matter (whether, when, which kind) use
+`instructions/reading.md` instead. A survey covers more ground with less
+depth, so state confidence one step lower than a reasoned reading of one
+matter would carry.
 
 Parashari only. Person files live under `persons/<name>/`. Section names in
 this file refer to `{guidebook-root}/parashari/advanced-chart-analysis.md`
@@ -13,6 +19,12 @@ Read `persons/<name>/charts/D1.md`, the vargas the question needs,
 `calculation` header says `School: Parashari`, ayanamsha `Lahiri`, house system
 `WholeSign`. On any mismatch, stop and report the mismatch; do not read
 placements across schools.
+
+For the periods running now and the slow transits, call
+`bash "<skill-dir>/scripts/evidence.sh" --name "<person>" --at "<today>"`
+and use its `running` section. Any date or period you state must come from
+`evidence`, and the answer is checked with a worksheet as in Step 6 of
+`instructions/reading.md`.
 
 Notes stay in working context and are never emitted.
 
@@ -161,7 +173,8 @@ opportunity, never proof (*Transits as triggers*). Qualify the transit with
 Done when the dasha lords, the transit check, and the SAV filter are cited, or
 the absence of a conjoined period is stated.
 
-### Step 7: Cite
+### Step 7: Answer
 
-Follow `## Evidence` and `## Output` in `SKILL.md`. Every claim carries the
-guidebook section name plus the person file field.
+Follow `## Evidence` and `## Output` in `SKILL.md`. Keep the guidebook
+section name and the person file field for every claim, and give them when
+the user asks why.

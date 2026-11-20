@@ -48,6 +48,34 @@ probability to each of the 80 years, and is scored on the year that happened.
 | `engine-with-base-rate`         | Engine and base rate multiplied                                                                                                       |
 | `shuffled-chart-with-base-rate` | The same with the next person's chart                                                                                                 |
 
+## Choice test for the promise rule
+
+The timing report only looks at events that happened. The choice test asks
+whether the yes-or-no rule tells options apart when the wrong options are
+known: a person who became a politician did not become a surgeon.
+
+```bash
+bun run eval:choices --data eval/data/<people>.jsonl --choices eval/data/<name>.choices.json
+```
+
+The choice file is JSON: a `question`, the `options` (event ids), and one
+answer per person with `id` (from the dataset), `chosen` (the options that
+are true) and optionally `unsure` (options left out for that person).
+
+Each verdict becomes a support value: promised 1, mixed leaning yes 0.75,
+mixed balanced or no rule 0.5, mixed leaning no 0.25, denied 0.
+
+| Number                                  | Meaning                                                                     |
+| --------------------------------------- | --------------------------------------------------------------------------- |
+| Top choice, own chart                   | How often the true option has the highest support; a tie shares the credit  |
+| Top choice, other charts                | The same with every other person's chart: what chance looks like here       |
+| Gain and range                          | Own minus other, with a 95% interval from resampling people                 |
+| Share of reassignments at least as good | How often dealing the charts out at random does as well; small means signal |
+| Margin                                  | Mean support for true options minus mean support for false ones             |
+
+Both are reported twice: with the houses as judged, and with the guidebook's
+parenthesised houses counted as conducive.
+
 ## How to read a report
 
 Read the comparisons first.

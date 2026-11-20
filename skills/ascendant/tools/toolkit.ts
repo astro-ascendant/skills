@@ -3,7 +3,7 @@ import { Tool, Toolkit } from "effect/ai";
 
 import { CommandError } from "./errors.ts";
 import { toolSpecs } from "./tool-specs.ts";
-import { addPerson, checkTransit, judge, rulingPlanets } from "./workflows.ts";
+import { addPerson, checkTransit, evidence, judge, rulingPlanets, verify } from "./workflows.ts";
 
 /**
  * The tools as an `effect/ai` Toolkit, for the CLI and agent scripts. The
@@ -41,7 +41,28 @@ export const Judge = Tool.make(toolSpecs.judge.name, {
   failure: CommandError,
 });
 
-export const AscendantToolkit = Toolkit.make(AddPerson, CheckTransit, RulingPlanets, Judge);
+export const Evidence = Tool.make(toolSpecs.evidence.name, {
+  description: toolSpecs.evidence.description,
+  parameters: toolSpecs.evidence.parameters,
+  success: Output,
+  failure: CommandError,
+});
+
+export const Verify = Tool.make(toolSpecs.verify.name, {
+  description: toolSpecs.verify.description,
+  parameters: toolSpecs.verify.parameters,
+  success: Output,
+  failure: CommandError,
+});
+
+export const AscendantToolkit = Toolkit.make(
+  AddPerson,
+  CheckTransit,
+  RulingPlanets,
+  Judge,
+  Evidence,
+  Verify,
+);
 
 /** Handlers for the toolkit: typed input in, typed `CommandError` out. */
 export const handlers = AscendantToolkit.of({
@@ -49,4 +70,6 @@ export const handlers = AscendantToolkit.of({
   ascendant_check_transit: (input) => checkTransit(input),
   ascendant_ruling_planets: (input) => rulingPlanets(input),
   ascendant_judge: (input) => judge(input),
+  ascendant_evidence: (input) => evidence(input),
+  ascendant_verify: (input) => verify(input),
 });

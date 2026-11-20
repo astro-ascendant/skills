@@ -4,19 +4,30 @@ import { Console, Effect } from "effect";
 
 import { AppLayer, KpAstroParamsLayer, PlatformLayer } from "./common.ts";
 import { failureReport } from "./errors.ts";
-import { AddPersonInput, CheckTransitInput, JudgeInput, RulingPlanetsInput } from "./tool-specs.ts";
+import {
+  AddPersonInput,
+  CheckTransitInput,
+  EvidenceInput,
+  JudgeInput,
+  RulingPlanetsInput,
+  VerifyInput,
+} from "./tool-specs.ts";
 import {
   ADD_PERSON_HELP,
   addPerson as addPersonWorkflow,
   checkTransit as checkTransitWorkflow,
   decodeInput,
   events as eventsWorkflow,
+  EVIDENCE_HELP,
+  evidence as evidenceWorkflow,
   home as homeWorkflow,
   JUDGE_HELP,
   judge as judgeWorkflow,
   RULING_PLANETS_HELP,
   rulingPlanets as rulingPlanetsWorkflow,
   TRANSIT_HELP,
+  VERIFY_HELP,
+  verify as verifyWorkflow,
 } from "./workflows.ts";
 
 /**
@@ -40,6 +51,12 @@ export const rulingPlanets = (input: typeof RulingPlanetsInput.Encoded) =>
 
 export const judge = (input: typeof JudgeInput.Encoded) =>
   decodeInput(JudgeInput, input, JUDGE_HELP).pipe(Effect.flatMap(judgeWorkflow));
+
+export const evidence = (input: typeof EvidenceInput.Encoded) =>
+  decodeInput(EvidenceInput, input, EVIDENCE_HELP).pipe(Effect.flatMap(evidenceWorkflow));
+
+export const verify = (input: typeof VerifyInput.Encoded) =>
+  decodeInput(VerifyInput, input, VERIFY_HELP).pipe(Effect.flatMap(verifyWorkflow));
 
 /** Event ids `judge` accepts, and the guidebook rows it refuses. */
 export const events = () => eventsWorkflow();

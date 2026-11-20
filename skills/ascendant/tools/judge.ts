@@ -158,7 +158,7 @@ export const skyBetween = Effect.fn("Ascendant.skyBetween")(function* (
   return { stepDays, samples } satisfies Sky;
 });
 
-const readMemoryOrEmpty = Effect.fn("Ascendant.readMemoryOrEmpty")(function* (name: string) {
+export const readMemoryOrEmpty = Effect.fn("Ascendant.readMemoryOrEmpty")(function* (name: string) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const file = path.join(yield* personsDirectory, name, "MEMORY.md");
@@ -210,7 +210,7 @@ export const JudgeResult = Schema.Struct({
 });
 export interface JudgeResult extends Schema.Schema.Type<typeof JudgeResult> {}
 
-export const judgeWorkflow = Effect.fn("Ascendant.judge")(function* (input: JudgeInput) {
+export const judgeResult = Effect.fn("Ascendant.judgeResult")(function* (input: JudgeInput) {
   const event = yield* Option.match(findKpEvent(input.event), {
     onNone: () =>
       Effect.fail(
@@ -320,7 +320,11 @@ export const judgeWorkflow = Effect.fn("Ascendant.judge")(function* (input: Judg
       }),
     }),
   };
-  return yield* Effect.orDie(Schema.encodeEffect(JudgeResult)(result));
+  return result;
+});
+
+export const judgeWorkflow = Effect.fn("Ascendant.judge")(function* (input: JudgeInput) {
+  return yield* Effect.orDie(Schema.encodeEffect(JudgeResult)(yield* judgeResult(input)));
 });
 
 export const listEvents = () => ({

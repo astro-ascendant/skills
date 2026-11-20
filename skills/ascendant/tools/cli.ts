@@ -1,18 +1,28 @@
 import { encode } from "@toon-format/toon";
-import { Console, Effect, Option } from "effect";
+import { Console, Effect, FileSystem, Option } from "effect";
 import { Command, Flag } from "effect/cli";
 
 import { PlatformLayer } from "./common.ts";
 import { failureReport } from "./errors.ts";
-import { AddPerson, CheckTransit, handlers, Judge, RulingPlanets } from "./toolkit.ts";
+import {
+  AddPerson,
+  CheckTransit,
+  Evidence,
+  handlers,
+  Judge,
+  RulingPlanets,
+  Verify,
+} from "./toolkit.ts";
 import {
   ADD_PERSON_HELP,
   decodeInput,
   events,
+  EVIDENCE_HELP,
   home,
   JUDGE_HELP,
   RULING_PLANETS_HELP,
   TRANSIT_HELP,
+  VERIFY_HELP,
 } from "./workflows.ts";
 import { VERSION } from "./version.ts";
 
@@ -229,6 +239,150 @@ const judge = Command.make(
   ]),
 );
 
+const numbersOf = (list: Option.Option<string>): ReadonlyArray<number> | undefined =>
+  Option.match(list, {
+    onNone: () => undefined,
+    onSome: (text) =>
+      text
+        .split(",")
+        .map((entry) => entry.trim())
+        .filter((entry) => entry !== "")
+        .map(Number),
+  });
+
+const namesOf = (list: Option.Option<string>): ReadonlyArray<string> | undefined =>
+  Option.match(list, {
+    onNone: () => undefined,
+    onSome: (text) =>
+      text
+        .split(",")
+        .map((entry) => entry.trim())
+        .filter((entry) => entry !== ""),
+  });
+
+const evidence = Command.make(
+  "evidence",
+  {
+    name,
+    houses: Flag.String("houses").pipe(
+      Flag.withDescription("Comma-separated houses the question turns on (default all)"),
+      Flag.optional,
+    ),
+    event: Flag.String("event").pipe(
+      Flag.withDescription("Event id from `ascendant events`: adds its house group and KP rule"),
+      Flag.optional,
+    ),
+    vargas: Flag.String("vargas").pipe(
+      Flag.withDescription("Comma-separated divisional charts to include (default 9,10)"),
+      Flag.optional,
+    ),
+    from: Flag.String("from").pipe(
+      Flag.withDescription("Start of the stretch of life to list periods for"),
+      Flag.optional,
+    ),
+    to: Flag.String("to").pipe(
+      Flag.withDescription("End of that stretch; give with --from"),
+      Flag.optional,
+    ),
+    at: Flag.String("at").pipe(
+      Flag.withDescription(
+        "A moment, usually now: adds the periods and slow transits running then",
+      ),
+      Flag.optional,
+    ),
+    compare: Flag.String("compare").pipe(
+      Flag.withDescription("Comma-separated period ids to lay side by side as candidates"),
+      Flag.optional,
+    ),
+    depth: Flag.String("depth").pipe(
+      Flag.withDescription("dasha, bhukti (default), antara or sookshma"),
+      Flag.optional,
+    ),
+  },
+  ({ houses, vargas, compare, ...flags }) =>
+    emit(
+      decodeInput(
+        Evidence.parametersSchema,
+        compact({
+          ...compact(flags),
+          houses: numbersOf(houses),
+          vargas: numbersOf(vargas),
+          compare: namesOf(compare),
+        }),
+        EVIDENCE_HELP,
+      ).pipe(Effect.flatMap(handlers.ascendant_evidence)),
+    ),
+).pipe(
+  Command.withDescription("List chart facts, periods and slow transits for a question"),
+  Command.withExamples([
+    {
+      command:
+        'ascendant evidence --name "Ada" --event service-or-business --from "2020-01-01T00:00:00+05:30" --to "2026-01-01T00:00:00+05:30"',
+      description: "Facts and bhukti periods for a first job question",
+    },
+  ]),
+);
+
+const readText = (file: string, what: string) =>
+  Effect.gen(function* () {
+    const fs = yield* FileSystem.FileSystem;
+    return yield* fs.readFileString(file).pipe(
+      Effect.mapError(() => ({
+        message: `Unable to read the ${what} file ${file}`,
+        code: "VALIDATION_ERROR",
+        suggestions: [VERIFY_HELP],
+      })),
+    );
+  });
+
+const parseJson = (text: string, file: string) =>
+  Effect.try({
+    try: (): unknown => JSON.parse(text),
+    catch: () => ({
+      message: `The worksheet file ${file} is not JSON`,
+      code: "VALIDATION_ERROR",
+      suggestions: [VERIFY_HELP],
+    }),
+  });
+
+const verify = Command.make(
+  "verify",
+  {
+    name,
+    draftFile: Flag.String("draft-file").pipe(
+      Flag.withDescription("File holding the draft answer exactly as it would be shown"),
+    ),
+    worksheetFile: Flag.String("worksheet-file").pipe(
+      Flag.withDescription("JSON file holding the reasoning worksheet behind the draft"),
+    ),
+  },
+  ({ draftFile, worksheetFile, ...flags }) =>
+    emit(
+      Effect.gen(function* () {
+        const draft = yield* readText(draftFile, "draft");
+        const worksheet = yield* parseJson(
+          yield* readText(worksheetFile, "worksheet"),
+          worksheetFile,
+        );
+        const input = yield* decodeInput(
+          Verify.parametersSchema,
+          { ...compact(flags), draft, worksheet },
+          VERIFY_HELP,
+        );
+        return yield* handlers.ascendant_verify(input);
+      }).pipe(Effect.provide(PlatformLayer)),
+    ),
+).pipe(
+  Command.withDescription("Check a draft answer against its reasoning worksheet"),
+  Command.withExamples([
+    {
+      command:
+        'ascendant verify --name "Ada" --draft-file ./.ascendant/draft.md --worksheet-file ./.ascendant/worksheet.json',
+      description: "Verify a drafted answer",
+    },
+  ]),
+);
+
 const listEvents = Command.make("events", {}, () => emit(events())).pipe(
   Command.withDescription("List the event ids that judge accepts"),
 );
@@ -237,7 +391,7 @@ const ascendant = Command.make("ascendant", {}, () =>
   emit(home().pipe(Effect.provide(PlatformLayer))),
 ).pipe(
   Command.withDescription("Calculate saved Vedic astrology records and search transits"),
-  Command.withSubcommands([addPerson, transit, rulingPlanets, judge, listEvents]),
+  Command.withSubcommands([addPerson, transit, rulingPlanets, judge, evidence, verify, listEvents]),
 );
 
 /** The `ascendant` command line. Provide platform services and run it. */
